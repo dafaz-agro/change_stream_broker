@@ -121,13 +121,13 @@ export interface IChangeStreamProducer {
 ```
 Métodos:
 
-- **`send(messages: Message | Message[]): Promise<void>`**
+- **`send(messages: Message | Message[]): Promise<void>`**  
 Envia uma ou mais mensagens para o tópico
 
-- **`disconnect(): Promise<void>`**
+- **`disconnect(): Promise<void>`**  
 Desconecta o producer
 
-- **`isConnected(): boolean`**
+- **`isConnected(): boolean`**  
 Verifica se está conectado
 
 
@@ -144,7 +144,7 @@ A interface `MessageHandler` define o contrato para a função responsável por 
 Essa interface é essencial para definir como as mensagens devem ser processadas pelos consumidores, permitindo que cada mensagem seja tratada de forma personalizada e assíncrona.
 
 Tipo Genérico:
-- **`<T = unknown>`**
+- **`<T = unknown>`**  
 Permite que o manipulador seja configurado para processar mensagens de diferentes formatos, garantindo flexibilidade e segurança de tipo.
 
 Parâmetros:
@@ -175,19 +175,19 @@ A interface `ConsumerRecord` representa os metadados de uma mensagem consumida d
 Essa interface é fundamental para fornecer o contexto completo de uma mensagem consumida, permitindo que os consumidores processem as mensagens de forma eficiente e segura.
 
 Propriedades:
-- **`topic: string`**
+- **`topic: string`**  
 O nome do tópico de onde a mensagem foi consumida.
 
-- **`partition: number`**
+- **`partition: number`**  
 O número da partição do tópico de onde a mensagem foi lida. Partições são usadas para distribuir mensagens e balancear a carga entre consumidores.
 
-- **`message: Message`**
+- **`message: Message`**  
 O conteúdo da mensagem consumida. A interface Message contém os dados principais que serão processados.
 
-- **`offset: ResumeToken`**
+- **`offset: ResumeToken`**  
 O token de resume do MongoDB, usado para rastrear a posição da mensagem no stream. Esse token é essencial para garantir o processamento exatamente uma vez (exactly-once) e para retomar o consumo em caso de falhas.
 
-- **`timestamp: Date`**
+- **`timestamp: Date`**  
 A data e hora em que a mensagem foi produzida ou consumida. Esse valor pode ser usado para fins de auditoria ou ordenação.
 
 
@@ -205,29 +205,29 @@ A interface `OffsetStorage` define o contrato para o gerenciamento de offsets no
 Essa interface é essencial para implementar diferentes estratégias de armazenamento de offsets, como armazenamento em MongoDB, arquivos ou outros sistemas, garantindo flexibilidade e confiabilidade no gerenciamento do consumo de mensagens.
 
 Método:
-- **`commitOffset(commit: OffsetCommit): Promise<void>`**
+- **`commitOffset(commit: OffsetCommit): Promise<void>`**  
 Armazena o offset mais recente para um grupo de consumidores, tópico e partição específicos.
 
 Parâmetro:
-- **`commit: OffsetCommit`**
+- **`commit: OffsetCommit`**  
 Um objeto contendo as informações necessárias para registrar o offset, como o grupo de consumidores, tópico, partição e o token de resume.
 
 Método:
-- **`getOffset(groupId: string, topic: string, partition: number): Promise<ResumeToken | null>`**
+- **`getOffset(groupId: string, topic: string, partition: number): Promise<ResumeToken | null>`**  
 Recupera o offset armazenado para um grupo de consumidores, tópico e partição específicos.
 
 Parâmetros:
-- **`groupId: string`** 
+- **`groupId: string`**  
 O identificador do grupo de consumidores.
 
-- **`topic: string`**
+- **`topic: string`**  
 O nome do tópico.
 
-- **`partition: number`**
+- **`partition: number`**  
 O número da partição.
 
 Retorno:
-- **`Promise<ResumeToken | null>`**
+- **`Promise<ResumeToken | null>`**  
 Retorno assíncrono do token de resume armazenado ou null se nenhum offset estiver disponível.
 
 
@@ -265,23 +265,23 @@ const broker = new ChangeStreamBroker({
 ```
 Essa configuração é ideal para cenários onde a resiliência e a estabilidade são cruciais, garantindo que o sistema continue funcionando mesmo em situações de falhas temporárias.
 
-Parâmetros:
-- **`mongoUri`** 
+Parâmetros:  
+- **`mongoUri`**  
 Define a URI de conexão com o MongoDB. No exemplo, está configurado para um MongoDB local na porta padrão (27017).
 
-- **`database`**
+- **`database`**  
 Especifica o banco de dados onde os eventos serão armazenados e gerenciados.
 
-- **`maxRetries`**
+- **`maxRetries`**  
 Configura o número máximo de tentativas de reconexão em caso de falhas na comunicação com o MongoDB.
 
-- **`retryDelayMs`**
+- **`retryDelayMs`**  
 Define o tempo de espera (em milissegundos) entre cada tentativa de reconexão.
 
-- **`heartbeatIntervalMs`**
+- **`heartbeatIntervalMs`**  
 Determina o intervalo de envio de heartbeats para monitorar a conexão com o MongoDB.
 
-- **`autoCreateTopics`**
+- **`autoCreateTopics`**  
 Quando habilitado (true), permite que o broker crie tópicos automaticamente, caso eles não existam.
 
 
@@ -325,7 +325,7 @@ microservices-example/
 
 #### Serviço de Purchase (Producer)
 
-purchase-service/ └── package.json
+purchase-service/ package.json
 
 ```json
 {
@@ -342,7 +342,7 @@ purchase-service/ └── package.json
 }
 ```
 
-purchase-service/ └── src/ └── purchases/ └── schemas/ └── purchase.schema.ts
+purchase-service/ src/ purchases/ schemas/ purchase.schema.ts
 
 
 ```typescript
@@ -375,7 +375,7 @@ export class Purchase {
 export const PurchaseSchema = SchemaFactory.createForClass(Purchase);
 ```
 
-purchase-service/ └── src/ └── change-stream/ └── purchase.publisher.ts
+purchase-service/ src/ change-stream/ purchase.publisher.ts
 
 ```typescript
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
@@ -449,7 +449,7 @@ export class PurchasePublisher implements OnModuleInit, OnModuleDestroy {
 }
 ```
 
-purchase-service/ └── src/ └── purchases/ └── purchases.service.ts
+purchase-service/ src/ purchases/ purchases.service.ts
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -506,7 +506,7 @@ export class PurchasesService {
 }
 ```
 
-purchase-service/ └── src/ └── purchases/ └── purchases.controller.ts
+purchase-service/ src/ purchases/ purchases.controller.ts
 
 ```typescript
 import { Controller, Post, Body, Param, Patch, Get } from '@nestjs/common';
@@ -533,7 +533,7 @@ export class PurchasesController {
 }
 ```
 
-purchase-service/ └── src/ └── app.module.ts
+purchase-service/ src/ app.module.ts
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -554,7 +554,7 @@ export class AppModule {}
 
 #### Serviço de Classroom (Consumer)
 
-classroom-service/ └── package.json
+classroom-service/ package.json
 
 ```json
 {
@@ -571,7 +571,7 @@ classroom-service/ └── package.json
 }
 ```
 
-classroom-service/ └── src/ └── enrollments/ └── schemas/ └── enrollment.schema.ts
+classroom-service/ src/ enrollments/ schemas/ enrollment.schema.ts
 
 ```typescript
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
@@ -603,7 +603,7 @@ export class Enrollment {
 export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);
 ```
 
-classroom-service/ └── src/ └── change-stream/ └── enrollment.consumer.ts
+classroom-service/ src/ change-stream/ enrollment.consumer.ts
 
 ```typescript
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
@@ -704,7 +704,7 @@ export class EnrollmentConsumer implements OnModuleInit, OnModuleDestroy {
 }
 ```
 
-classroom-service/ └── src/ └── enrollments/ └── enrollments.service.ts
+classroom-service/ src/ enrollments/ enrollments.service.ts
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -752,7 +752,7 @@ export class EnrollmentsService {
 }
 ```
 
-classroom-service/ └── src/ └── enrollments/ └── enrollments.controller.ts
+classroom-service/ src/ enrollments/ enrollments.controller.ts
 
 ```typescript
 import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common';
@@ -784,7 +784,7 @@ export class EnrollmentsController {
 }
 ```
 
-classroom-service/ └── src/ └── app.module.ts
+classroom-service/ src/ app.module.ts
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -809,7 +809,7 @@ Para fins de desenvolvimento, você pode simular esse cluster. Vamos criar dois
 arquivos para subir uma instância de dados no docker com replSet configurado.
 **Observação: isso só deve ser feito para fins de desenvolvimento.**
 
-[root] / └── docker-compose.yml
+[root] / docker-compose.yml
 
 ```yml
 version: '3.8'
@@ -846,7 +846,7 @@ networks:
     driver: bridge
 ```
 
-[root-path] / └── Dockerfile
+[root-path] / Dockerfile
 
 ```text
 FROM mongo

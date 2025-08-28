@@ -28,8 +28,8 @@
 #### Pré-requisitos
 
 - Node.js 16+  
-- MongoDB 5.0+ com replica set habilitado  (veja exemplo no final)
-- TypeScript (opcional, mas recomendado)  
+- MongoDB 5.0+ com replica set habilitado  **(veja exemplo no final)**
+- TypeScript **(recomendado)**
 
 #### Instalação
 
@@ -323,9 +323,12 @@ microservices-example/
 └── package.json
 ```
 
-#### Serviço de Purchase (Producer)
+### Serviço de Purchase (Producer)
 
-purchase-service/ package.json
+
+#### package.json
+
+**purchase-service/ package.json**  
 
 ```json
 {
@@ -342,8 +345,9 @@ purchase-service/ package.json
 }
 ```
 
-purchase-service/ src/ purchases/ schemas/ purchase.schema.ts
+#### PurchaseSchema
 
+**purchase-service/ src/ purchases/ schemas/ purchase.schema.ts**  
 
 ```typescript
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
@@ -375,7 +379,9 @@ export class Purchase {
 export const PurchaseSchema = SchemaFactory.createForClass(Purchase);
 ```
 
-purchase-service/ src/ change-stream/ purchase.publisher.ts
+#### PurchasePublisher
+
+**purchase-service/ src/ change-stream/ purchase.publisher.ts**  
 
 ```typescript
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
@@ -449,7 +455,9 @@ export class PurchasePublisher implements OnModuleInit, OnModuleDestroy {
 }
 ```
 
-purchase-service/ src/ purchases/ purchases.service.ts
+#### PurchasesService
+
+**purchase-service/ src/ purchases/ purchases.service.ts**  
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -506,7 +514,9 @@ export class PurchasesService {
 }
 ```
 
-purchase-service/ src/ purchases/ purchases.controller.ts
+#### PurchasesController
+
+**purchase-service/ src/ purchases/ purchases.controller.ts**  
 
 ```typescript
 import { Controller, Post, Body, Param, Patch, Get } from '@nestjs/common';
@@ -533,7 +543,9 @@ export class PurchasesController {
 }
 ```
 
-purchase-service/ src/ app.module.ts
+#### AppModule
+
+**purchase-service/ src/ app.module.ts**  
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -552,9 +564,12 @@ import { PurchasePublisher } from './change-stream/purchase.publisher';
 export class AppModule {}
 ```
 
-#### Serviço de Classroom (Consumer)
+### Serviço de Classroom (Consumer)
 
-classroom-service/ package.json
+
+#### package.json
+
+**classroom-service/ package.json**  
 
 ```json
 {
@@ -571,7 +586,10 @@ classroom-service/ package.json
 }
 ```
 
-classroom-service/ src/ enrollments/ schemas/ enrollment.schema.ts
+
+#### EnrollmentSchema
+
+**classroom-service/ src/ enrollments/ schemas/ enrollment.schema.ts**  
 
 ```typescript
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
@@ -603,7 +621,10 @@ export class Enrollment {
 export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);
 ```
 
-classroom-service/ src/ change-stream/ enrollment.consumer.ts
+
+#### PurchaseMessage
+
+**classroom-service/ src/ change-stream/ enrollment.consumer.ts**  
 
 ```typescript
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
@@ -704,7 +725,9 @@ export class EnrollmentConsumer implements OnModuleInit, OnModuleDestroy {
 }
 ```
 
-classroom-service/ src/ enrollments/ enrollments.service.ts
+#### EnrollmentsService
+
+**classroom-service/ src/ enrollments/ enrollments.service.ts**  
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -752,7 +775,9 @@ export class EnrollmentsService {
 }
 ```
 
-classroom-service/ src/ enrollments/ enrollments.controller.ts
+#### EnrollmentsController
+
+**classroom-service/ src/ enrollments/ enrollments.controller.ts**  
 
 ```typescript
 import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common';
@@ -784,7 +809,9 @@ export class EnrollmentsController {
 }
 ```
 
-classroom-service/ src/ app.module.ts
+#### AppModule
+
+**classroom-service/ src/ app.module.ts**
 
 ```typescript
 import { Module } from '@nestjs/common';

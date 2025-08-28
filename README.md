@@ -802,7 +802,9 @@ import { EnrollmentConsumer } from './change-stream/enrollment.consumer';
 export class AppModule {}
 ```
 
-#### Exemplo Configuração Docker replSet (local - para desenvolvimento)
+### Exemplo de Configuração Docker
+
+#### replSet local (para desenvolvimento)
 
 O Change Stream exige que a sua instância do MongoDB esteja em um cluster.
 Para fins de desenvolvimento, você pode simular esse cluster. Vamos criar dois

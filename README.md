@@ -34,7 +34,7 @@
 #### Instalação
 
 ```bash
-npm install @seu-usuario/change-stream-broker
+npm install @dafaz/change-stream-broker
 ```
 
 #### Configuração do MongoDB
@@ -383,7 +383,7 @@ import {
   ChangeStreamBroker, 
   ProducerConfig,
   IChangeStreamProducer  // ← Importar a interface
-} from '@seu-usuario/change-stream-broker';
+} from '@dafaz/change-stream-broker';
 
 export interface PurchaseMessage {
   purchaseId: string;
@@ -566,7 +566,7 @@ classroom-service/ package.json
     "@nestjs/mongoose": "^9.0.0",
     "@nestjs/platform-express": "^9.0.0",
     "mongoose": "^6.0.0",
-    "@seu-usuario/change-stream-broker": "^1.0.0"
+    "@dafaz/change-stream-broker": "^1.0.0"
   }
 }
 ```
@@ -611,7 +611,7 @@ import {
   ChangeStreamBroker, 
   ConsumerConfig, 
   MessageHandlerConfig 
-} from '@seu-usuario/change-stream-broker';
+} from '@dafaz/change-stream-broker';
 import { EnrollmentsService } from '../enrollments/enrollments.service';
 
 interface PurchaseMessage {

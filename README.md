@@ -28,7 +28,7 @@
 #### Pré-requisitos
 
 - Node.js 16+  
-- MongoDB 5.0+ com replica set habilitado  
+- MongoDB 5.0+ com replica set habilitado  (veja exemplo no final)
 - TypeScript (opcional, mas recomendado)  
 
 #### Instalação

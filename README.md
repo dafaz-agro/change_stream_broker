@@ -110,6 +110,27 @@ A interface `IChangeStreamConsumer` define o contrato para a implementação de 
 Essa interface é essencial para garantir que os consumidores sigam um padrão consistente, facilitando a implementação e manutenção do sistema.
 
 
+#### IChangeStreamProducer
+
+```typescript
+export interface IChangeStreamProducer {
+  send(messages: Message | Message[]): Promise<void>
+  disconnect(): Promise<void>
+  isConnected(): boolean
+}
+```
+Métodos:
+
+- **`send(messages: Message | Message[]): Promise<void>`**
+Envia uma ou mais mensagens para o tópico
+
+- **`disconnect(): Promise<void>`**
+Desconecta o producer
+
+- **`isConnected(): boolean`**
+Verifica se está conectado
+
+
 #### MessageHandler
 
 A interface `MessageHandler` define o contrato para a função responsável por processar mensagens consumidas de um tópico. Essa função é utilizada pelos consumidores para lidar com cada mensagem recebida. Abaixo está a explicação detalhada:
@@ -358,7 +379,11 @@ purchase-service/ └── src/ └── change-stream/ └── purchase.pub
 
 ```typescript
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { ChangeStreamBroker, ProducerConfig } from '@seu-usuario/change-stream-broker';
+import { 
+  ChangeStreamBroker, 
+  ProducerConfig,
+  IChangeStreamProducer  // ← Importar a interface
+} from '@seu-usuario/change-stream-broker';
 
 export interface PurchaseMessage {
   purchaseId: string;
@@ -373,7 +398,7 @@ export interface PurchaseMessage {
 @Injectable()
 export class PurchasePublisher implements OnModuleInit, OnModuleDestroy {
   private broker: ChangeStreamBroker;
-  private producer: any;
+  private producer: IChangeStreamProducer;  // ← Usando interface
 
   constructor() {
     this.broker = new ChangeStreamBroker({

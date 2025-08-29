@@ -1,5 +1,6 @@
 import { Timestamp } from 'mongodb'
 
 export const DateToTimestamp = (date: Date): Timestamp => {
-	return Timestamp.fromBits(Math.floor(date.getTime() / 1000), 0)
+	const seconds = Math.floor(date.getTime() / 1000)
+	return Timestamp.fromBits(seconds, 0)
 }

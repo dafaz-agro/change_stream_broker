@@ -6,8 +6,9 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
     }, 
+    
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module

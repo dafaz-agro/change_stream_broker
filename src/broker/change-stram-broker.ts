@@ -1,5 +1,5 @@
-import { ConsumerGroupManager } from '@/consumer/consumer-group'
 import { ChangeStreamConsumer } from '../consumer/consumer'
+import { ConsumerGroupManager } from '../consumer/consumer-group'
 import { ChangeStreamProducer } from '../producer/producer'
 import { OffsetStorage } from '../storage/offset-storage'
 import { TopicManager } from './topic-manager'

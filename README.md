@@ -116,7 +116,7 @@ Essa interface é essencial para garantir que os consumidores sigam um padrão c
 export interface IChangeStreamProducer {
   send(messages: Message | Message[]): Promise<void>
   disconnect(): Promise<void>
-  isConnected(): boolean
+  isConnected: boolean
 }
 ```
 Métodos:

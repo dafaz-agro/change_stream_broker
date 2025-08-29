@@ -1,5 +1,5 @@
 export { ChangeStreamBroker } from './broker/change-stram-broker'
-
+export { TopicManager } from './broker/topic-manager'
 export type {
 	BrokerConfig,
 	ConsumerConfig,
@@ -15,5 +15,6 @@ export type {
 	TopicConfig,
 } from './broker/types'
 export { ChangeStreamConsumer } from './consumer/consumer'
+export { ConsumerGroupManager } from './consumer/consumer-group'
 export { ChangeStreamProducer } from './producer/producer'
 export { OffsetStorage } from './storage/offset-storage'

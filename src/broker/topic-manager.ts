@@ -21,6 +21,29 @@ export class TopicManager {
 		Logger.info('TopicManager connected to MongoDB')
 	}
 
+	private async createTTLIndex(collectionName: string, retentionMs: number) {
+		try {
+			const collection = this.db.collection(collectionName)
+
+			// Converter retentionMs para segundos (TTL index usa segundos)
+			const expireAfterSeconds = Math.floor(retentionMs / 1000)
+
+			await collection.createIndex(
+				{ _timestamp: 1 },
+				{
+					expireAfterSeconds,
+					name: `ttl_${collectionName}_timestamp`,
+				},
+			)
+
+			Logger.info(`TTL index created for collection ${collectionName}`, {
+				expireAfterSeconds,
+			})
+		} catch (error) {
+			Logger.error(`Failed to create TTL index for ${collectionName}:`, error)
+		}
+	}
+
 	async createTopic(config: TopicConfig): Promise<void> {
 		if (!this.topicsCollection) {
 			throw new Error('TopicManager not connected. Call connect() first.')
@@ -50,6 +73,10 @@ export class TopicManager {
 			},
 			{ upsert: true },
 		)
+
+		if (config.retentionMs) {
+			await this.createTTLIndex(config.collection, config.retentionMs)
+		}
 
 		Logger.info(`Topic ${config.name} created/updated`)
 	}

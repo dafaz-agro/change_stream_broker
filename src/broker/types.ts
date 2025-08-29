@@ -68,7 +68,7 @@ export interface IChangeStreamProducer {
 export interface Message<T = Document> {
 	key?: string
 	value: T
-	timestamp: Timestamp
+	timestamp: Date
 	headers?: Record<string, string>
 }
 
@@ -160,7 +160,7 @@ export interface ChangeStreamEvent<T extends Document = Document> {
 		updatedFields: Partial<T>
 		removedFields: (keyof T)[]
 	}
-	clusterTime: Timestamp
+	clusterTime: Date
 
 	// Campos específicos para determinados operationTypes
 	to?: {

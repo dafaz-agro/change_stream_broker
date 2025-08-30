@@ -3,9 +3,11 @@ import {
 	Document,
 	ChangeStreamOptions as MongoChangeStreamOptions,
 	ObjectId,
+	OptionalUnlessRequiredId,
 	ReadPreferenceLike,
 	ResumeToken,
 	Timestamp,
+	WithId,
 } from 'mongodb'
 
 export interface BrokerConfig {
@@ -27,8 +29,42 @@ export interface TopicConfig {
 
 export interface TopicDocument extends Document, TopicConfig {
 	_id?: ObjectId
+	name: string
+	collection: string
+	partitions: number
+	retentionMs: number
 	createdAt: Date
 	updatedAt: Date
+}
+
+// Tipo para documentos com _id
+export type TopicDocumentWithId = WithId<TopicDocument>
+
+// Tipo para operações de upsert
+export type TopicDocumentInput = OptionalUnlessRequiredId<TopicDocument>
+
+export interface TTLIndexInfo {
+	v: number
+	key: { [key: string]: number }
+	name: string
+	ns?: string
+	expireAfterSeconds: number
+	background?: boolean
+	unique?: boolean
+	sparse?: boolean
+}
+
+export interface TTLValidationResult {
+	isValid: boolean
+	issues: string[]
+	indexInfo?: TTLIndexInfo | undefined
+	sampleDocument?: any
+}
+
+export interface IndexOperationResult {
+	success: boolean
+	message: string
+	indexInfo?: TTLIndexInfo | undefined
 }
 
 export interface ConsumerConfig {

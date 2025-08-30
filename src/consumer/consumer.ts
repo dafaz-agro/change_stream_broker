@@ -1,4 +1,5 @@
 import { ChangeStream, Document, MongoClient, ResumeToken } from 'mongodb'
+import { OffsetStorage } from '../storage/offset-storage'
 import {
 	ChangeStreamEvent,
 	ChangeStreamWatchOptions,
@@ -6,8 +7,7 @@ import {
 	ConsumerRecord,
 	IChangeStreamConsumer,
 	MessageHandlerConfig,
-} from '../broker/types'
-import { OffsetStorage } from '../storage/offset-storage'
+} from '../types/types'
 import { BackoffManager } from '../utils/backoff'
 import { Logger } from '../utils/logger'
 import { ConsumerGroupManager } from './consumer-group'

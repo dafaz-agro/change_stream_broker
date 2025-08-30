@@ -1,5 +1,9 @@
-export { ChangeStreamBroker } from './broker/change-stram-broker'
+export { ChangeStreamBroker } from './broker/change-stream-broker'
 export { TopicManager } from './broker/topic-manager'
+export { ChangeStreamConsumer } from './consumer/consumer'
+export { ConsumerGroupManager } from './consumer/consumer-group'
+export { ChangeStreamProducer } from './producer/producer'
+export { OffsetStorage } from './storage/offset-storage'
 export type {
 	BrokerConfig,
 	ConsumerConfig,
@@ -13,9 +17,5 @@ export type {
 	OffsetCommit,
 	ProducerConfig,
 	TopicConfig,
-} from './broker/types'
-export { ChangeStreamConsumer } from './consumer/consumer'
-export { ConsumerGroupManager } from './consumer/consumer-group'
-export { ChangeStreamProducer } from './producer/producer'
-export { OffsetStorage } from './storage/offset-storage'
+} from './types/types'
 export { DateToTimestamp } from './utils/date-to-timestamp'

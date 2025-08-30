@@ -3,7 +3,7 @@ import {
 	ConsumerGroup,
 	ConsumerMap,
 	IChangeStreamConsumer,
-} from '../broker/types'
+} from '../types/types'
 import { Logger } from '../utils/logger'
 
 export class ConsumerGroupManager {

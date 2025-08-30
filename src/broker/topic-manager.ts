@@ -5,7 +5,6 @@ import {
 	MongoServerError,
 	OptionalUnlessRequiredId,
 } from 'mongodb'
-import { Logger } from '../utils/logger'
 import {
 	IndexOperationResult,
 	TopicConfig,
@@ -13,7 +12,8 @@ import {
 	TopicDocumentWithId,
 	TTLIndexInfo,
 	TTLValidationResult,
-} from './types'
+} from '../types/types'
+import { Logger } from '../utils/logger'
 
 export class TopicManager {
 	private client!: MongoClient
@@ -315,6 +315,18 @@ export class TopicManager {
 				`Failed to remove TTL index: ${JSON.stringify(error)}`,
 			)
 		}
+	}
+
+	async topicExists(topicName: string): Promise<boolean> {
+		if (!this.topicsCollection) {
+			throw new Error('TopicManager not connected. Call connect() first.')
+		}
+
+		const topic = (await this.topicsCollection.findOne({
+			name: topicName,
+		})) as unknown as TopicDocumentWithId | null
+
+		return !!topic
 	}
 
 	async validateTTLIndex(collectionName: string): Promise<TTLValidationResult> {

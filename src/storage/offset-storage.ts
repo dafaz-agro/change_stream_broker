@@ -10,7 +10,7 @@ import {
 import {
 	OffsetStorage as MongoOffsetStorage,
 	OffsetCommit,
-} from '../broker/types'
+} from '../types/types'
 import { Logger } from '../utils/logger'
 
 export interface OffsetDocument extends Document {

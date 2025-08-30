@@ -1,5 +1,5 @@
 import { Document, MongoClient, OptionalId } from 'mongodb'
-import { IChangeStreamProducer, Message, ProducerConfig } from '../broker/types'
+import { IChangeStreamProducer, Message, ProducerConfig } from '../types/types'
 import { Logger } from '../utils/logger'
 
 export class ChangeStreamProducer implements IChangeStreamProducer {

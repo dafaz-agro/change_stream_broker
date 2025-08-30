@@ -1,5 +1,5 @@
 import { Document, OptionalId } from 'mongodb'
-import { Message } from '../broker/types'
+import { Message } from '../types/types'
 
 export class ValidationUtils {
 	static isValidDocument(doc: Document): doc is OptionalId<Document> {

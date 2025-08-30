@@ -5,14 +5,13 @@ import {
 	ChangeStreamWatchOptions,
 	ConsumerConfig,
 	ConsumerRecord,
-	IChangeStreamConsumer,
 	MessageHandlerConfig,
-} from '../types/types'
+} from '../types'
 import { BackoffManager } from '../utils/backoff'
 import { Logger } from '../utils/logger'
 import { ConsumerGroupManager } from './consumer-group'
 
-export class ChangeStreamConsumer implements IChangeStreamConsumer {
+export class ChangeStreamConsumer {
 	private client: MongoClient | null = null
 	private changeStream: ChangeStream | null = null
 	private isRunning = false
@@ -43,7 +42,7 @@ export class ChangeStreamConsumer implements IChangeStreamConsumer {
 		return `${this.config.groupId}-${this.config.topic}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 	}
 
-	// Implementação da interface IChangeStreamConsumer
+	// Implementação da interface ChangeStreamConsumer
 	getConsumerId(): string {
 		return this.consumerId
 	}

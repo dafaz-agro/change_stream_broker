@@ -7,10 +7,7 @@ import {
 	OptionalUnlessRequiredId,
 	ResumeToken,
 } from 'mongodb'
-import {
-	OffsetStorage as MongoOffsetStorage,
-	OffsetCommit,
-} from '../types/types'
+import { OffsetStorage as MongoOffsetStorage, OffsetCommit } from '../types'
 import { Logger } from '../utils/logger'
 
 export interface OffsetDocument extends Document {

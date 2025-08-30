@@ -5,19 +5,17 @@ import { OffsetStorage } from '../storage/offset-storage'
 import {
 	BrokerConfig,
 	ConsumerConfig,
-	IChangeStreamConsumer,
-	IChangeStreamProducer,
 	ProducerConfig,
 	TopicConfig,
-} from '../types/types'
+} from '../types'
 import { TopicManager } from './topic-manager'
 
 export class ChangeStreamBroker {
 	private topicManager: TopicManager
 	private offsetStorage: OffsetStorage
 	private consumerGroupManager: ConsumerGroupManager
-	private consumers: Map<string, IChangeStreamConsumer> = new Map()
-	private producers: Map<string, IChangeStreamProducer> = new Map()
+	private consumers: Map<string, ChangeStreamConsumer> = new Map()
+	private producers: Map<string, ChangeStreamProducer> = new Map()
 
 	constructor(private config: BrokerConfig) {
 		this.topicManager = new TopicManager(
@@ -42,7 +40,7 @@ export class ChangeStreamBroker {
 		await this.topicManager.createTopic(config)
 	}
 
-	async createConsumer(config: ConsumerConfig): Promise<IChangeStreamConsumer> {
+	async createConsumer(config: ConsumerConfig): Promise<ChangeStreamConsumer> {
 		const consumer = new ChangeStreamConsumer(
 			config,
 			this.offsetStorage,
@@ -57,7 +55,7 @@ export class ChangeStreamBroker {
 		return consumer
 	}
 
-	async createProducer(config: ProducerConfig): Promise<IChangeStreamProducer> {
+	async createProducer(config: ProducerConfig): Promise<ChangeStreamProducer> {
 		// Verificar se o tópico existe, criar se necessário
 		if (
 			this.config.autoCreateTopics &&

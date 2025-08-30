@@ -1,8 +1,8 @@
 import { Document, MongoClient, OptionalId } from 'mongodb'
-import { IChangeStreamProducer, Message, ProducerConfig } from '../types/types'
+import { Message, ProducerConfig } from '../types'
 import { Logger } from '../utils/logger'
 
-export class ChangeStreamProducer implements IChangeStreamProducer {
+export class ChangeStreamProducer {
 	private client: MongoClient | null = null
 	public isConnected = false
 

@@ -1,10 +1,7 @@
 import { ResumeToken } from 'mongodb'
-import {
-	ConsumerGroup,
-	ConsumerMap,
-	IChangeStreamConsumer,
-} from '../types/types'
+import { ConsumerGroup, ConsumerMap } from '../types'
 import { Logger } from '../utils/logger'
+import { ChangeStreamConsumer } from './consumer'
 
 export class ConsumerGroupManager {
 	private consumerGroups: Map<string, ConsumerGroup> = new Map()
@@ -32,7 +29,7 @@ export class ConsumerGroupManager {
 	addMemberToGroup(
 		groupId: string,
 		consumerId: string,
-		consumer: IChangeStreamConsumer,
+		consumer: ChangeStreamConsumer,
 	): void {
 		const group = this.consumerGroups.get(groupId)
 		if (!group) {

@@ -12,7 +12,7 @@ import {
 	TopicDocumentWithId,
 	TTLIndexInfo,
 	TTLValidationResult,
-} from '../types/types'
+} from '../types'
 import { Logger } from '../utils/logger'
 
 export class TopicManager {

@@ -9,13 +9,11 @@ export type {
 	ConsumerConfig,
 	ConsumerRecord,
 	ErrorHandler,
-	IChangeStreamConsumer,
-	IChangeStreamProducer,
 	Message,
 	MessageHandler,
 	MessageHandlerConfig,
 	OffsetCommit,
 	ProducerConfig,
 	TopicConfig,
-} from './types/types'
+} from './types'
 export { DateToTimestamp } from './utils/date-to-timestamp'

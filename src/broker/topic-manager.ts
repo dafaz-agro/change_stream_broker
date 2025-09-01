@@ -195,7 +195,6 @@ export class TopicManager {
 	): Promise<IndexOperationResult> {
 		try {
 			const collection = this.db.collection(collectionName)
-			const expireAfterSeconds = Math.floor(retentionMs / 1000)
 
 			// Dropar o index existente
 			await collection.dropIndex(`ttl_${collectionName}_timestamp`)
@@ -203,7 +202,7 @@ export class TopicManager {
 			// Criar novo index
 			const createResult = await this.createTTLIndex(
 				collectionName,
-				expireAfterSeconds,
+				retentionMs,
 			)
 
 			if (!createResult.success) {
@@ -256,13 +255,16 @@ export class TopicManager {
 
 		// Gerenciar TTL index apenas se retentionMs for fornecido
 		if (config.retentionMs !== undefined) {
+			const hasExistingIndex = !!(await this.getTTLIndexInfo(config.collection))
+
 			if (existingTopic?.retentionMs !== config.retentionMs) {
 				// Retention mudou, atualizar index
 				await this.updateTTLIndex(config.collection, config.retentionMs)
-			} else if (!existingTopic) {
-				// Novo tópico, criar index
+			} else if (!hasExistingIndex) {
+				// Novo tópico OU index não existe, criar index
 				await this.createTTLIndex(config.collection, config.retentionMs)
 			}
+			// Se retention é igual e index já existe, não faz nada
 		} else if (existingTopic?.retentionMs !== undefined) {
 			// Retention foi removida, dropar index
 			await this.removeTTLIndex(config.collection)

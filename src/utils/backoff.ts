@@ -5,12 +5,20 @@ export class BackoffManager {
 		private maxRetries: number = 10,
 		private baseDelay: number = 1000,
 		private maxDelay: number = 30000,
+		private jitter: boolean = true, // ← Adicionar jitter
 	) {}
 
 	getNextDelay(): number {
-		const delay = Math.min(this.maxDelay, this.baseDelay * 2 ** this.attempt)
+		const exponentialDelay = this.baseDelay * 2 ** this.attempt
+		const delay = Math.min(this.maxDelay, exponentialDelay)
+
+		// Adicionar jitter para evitar sincronização
+		const finalDelay = this.jitter
+			? delay * (0.8 + 0.4 * Math.random()) // Jitter entre 80-120%
+			: delay
+
 		this.attempt++
-		return delay
+		return Math.max(100, finalDelay) // Mínimo 100ms
 	}
 
 	shouldRetry(): boolean {
@@ -23,5 +31,12 @@ export class BackoffManager {
 
 	getAttempt(): number {
 		return this.attempt
+	}
+
+	// Novo método para reset condicional
+	conditionalReset(success: boolean): void {
+		if (success) {
+			this.reset()
+		}
 	}
 }

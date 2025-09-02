@@ -25,11 +25,47 @@ export class OffsetStorage implements MongoOffsetStorage {
 	private isConnecting: boolean = false
 	private lastConnectionCheck: number = 0
 	private connectionStatus: boolean = false
+	private logger: typeof Logger
 
 	constructor(
 		private mongoUri: string,
 		private database: string = 'change-stream-broker',
-	) {}
+	) {
+		this.logger = Logger.withContext('Offset Storage')
+	}
+
+	async commitOffsetIfChanged(commit: OffsetCommit): Promise<boolean> {
+		await this.ensureConnected()
+
+		try {
+			// Verificar offset atual
+			const currentOffset = await this.getOffset(
+				commit.groupId,
+				commit.topic,
+				commit.partition,
+			)
+
+			// Se o offset é o mesmo, não cometer
+			if (currentOffset && this.isSameOffset(currentOffset, commit.offset)) {
+				this.logger.info('Offset unchanged, skipping commit', {
+					groupId: commit.groupId,
+					topic: commit.topic,
+					partition: commit.partition,
+				})
+				return false
+			}
+
+			await this.commitOffset(commit)
+			return true
+		} catch (error) {
+			this.logger.error('Error in commitOffsetIfChanged:', error)
+			throw error
+		}
+	}
+
+	private isSameOffset(offset1: ResumeToken, offset2: ResumeToken): boolean {
+		return JSON.stringify(offset1) === JSON.stringify(offset2)
+	}
 
 	async connect(): Promise<void> {
 		if (this.isConnecting) {
@@ -37,7 +73,7 @@ export class OffsetStorage implements MongoOffsetStorage {
 		}
 
 		if (this.isConnected()) {
-			Logger.warn('OffsetStorage already connected')
+			this.logger.warn('OffsetStorage already connected')
 			return
 		}
 
@@ -63,18 +99,18 @@ export class OffsetStorage implements MongoOffsetStorage {
 			} catch (indexError) {
 				if (indexError instanceof MongoServerError && indexError.code === 85) {
 					// Código 85: Index already exists with different options
-					Logger.warn('Index already exists with different options')
+					this.logger.warn('Index already exists with different options')
 				} else {
 					throw indexError
 				}
 			}
 
-			Logger.info('OffsetStorage connected successfully', {
+			this.logger.info('OffsetStorage connected successfully', {
 				database: this.database,
 				collection: 'consumer_offsets',
 			})
 		} catch (error) {
-			Logger.error('Failed to connect OffsetStorage:', error)
+			this.logger.error('Failed to connect OffsetStorage:', error)
 			await this.cleanup()
 			throw error
 		} finally {
@@ -115,7 +151,7 @@ export class OffsetStorage implements MongoOffsetStorage {
 			await this.db.command({ ping: 1 })
 			return true
 		} catch (error) {
-			Logger.warn('Connection verification failed:', error)
+			this.logger.warn('Connection verification failed:', error)
 			return false
 		}
 	}
@@ -139,7 +175,7 @@ export class OffsetStorage implements MongoOffsetStorage {
 
 			return doc?.offset || null
 		} catch (error) {
-			Logger.error('Error getting offset:', error)
+			this.logger.error('Error getting offset:', error)
 			throw error
 		}
 	}
@@ -175,13 +211,13 @@ export class OffsetStorage implements MongoOffsetStorage {
 				{ upsert: true },
 			)
 
-			Logger.info('Offset committed successfully', {
+			this.logger.info('Offset committed successfully', {
 				groupId: commit.groupId,
 				topic: commit.topic,
 				partition: commit.partition,
 			})
 		} catch (error) {
-			Logger.error('Error committing offset:', error)
+			this.logger.error('Error committing offset:', error)
 			throw error
 		}
 	}
@@ -206,14 +242,14 @@ export class OffsetStorage implements MongoOffsetStorage {
 				timestamp: doc.timestamp,
 			}))
 		} catch (error) {
-			Logger.error('Error getting offsets:', error)
+			this.logger.error('Error getting offsets:', error)
 			throw error
 		}
 	}
 
 	async disconnect(): Promise<void> {
 		await this.cleanup()
-		Logger.info('OffsetStorage disconnected')
+		this.logger.info('OffsetStorage disconnected')
 	}
 
 	isConnected(): boolean {
@@ -232,7 +268,7 @@ export class OffsetStorage implements MongoOffsetStorage {
 			try {
 				await this.client.close()
 			} catch (error) {
-				Logger.warn('Error closing MongoDB client:', error)
+				this.logger.warn('Error closing MongoDB client:', error)
 			}
 		}
 

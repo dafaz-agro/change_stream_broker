@@ -19,11 +19,14 @@ export class TopicManager {
 	private client!: MongoClient
 	private db!: Db
 	private topicsCollection!: Collection<TopicConfig & Document>
+	private logger: typeof Logger
 
 	constructor(
 		private mongoUri: string,
 		private database: string = 'change-stream-broker',
-	) {}
+	) {
+		this.logger = Logger.withContext('TopicManager')
+	}
 
 	async connect(): Promise<void> {
 		this.client = new MongoClient(this.mongoUri)
@@ -31,7 +34,7 @@ export class TopicManager {
 		this.db = this.client.db(this.database)
 		this.topicsCollection = this.db.collection<TopicConfig & Document>('topics')
 
-		Logger.info('TopicManager connected to MongoDB')
+		this.logger.info('TopicManager connected to MongoDB')
 	}
 
 	private async createTTLIndex(
@@ -41,11 +44,30 @@ export class TopicManager {
 		try {
 			const collection = this.db.collection(collectionName)
 
+			const collections = await this.db
+				.listCollections({
+					name: collectionName,
+				})
+				.toArray()
+
+			if (collections.length === 0) {
+				this.logger.info(
+					`Collection ${collectionName} does not exist, creating implicitly`,
+				)
+				await collection.insertOne({
+					_timestamp: new Date(),
+					_temp: true,
+				})
+				await collection.deleteOne({ _temp: true })
+			}
+
 			// Verificar se o index já existe usando nossa função que retorna o objeto completo
 			const existingIndexInfo = await this.getTTLIndexInfo(collectionName)
 
 			if (existingIndexInfo) {
-				Logger.info(`TTL index already exists for collection ${collectionName}`)
+				this.logger.info(
+					`TTL index already exists for collection ${collectionName}`,
+				)
 				return {
 					success: true,
 					message: 'TTL index already exists',
@@ -72,7 +94,7 @@ export class TopicManager {
 				},
 			)
 
-			Logger.info(`TTL index created for collection ${collectionName}`, {
+			this.logger.info(`TTL index created for collection ${collectionName}`, {
 				expireAfterSeconds,
 				retentionHours: Math.round(expireAfterSeconds / 3600),
 				retentionDays: Math.round(expireAfterSeconds / 86400),
@@ -99,7 +121,7 @@ export class TopicManager {
 				error instanceof MongoServerError &&
 				error.codeName === 'IndexOptionsConflict'
 			) {
-				Logger.warn(
+				this.logger.warn(
 					`TTL index conflict for ${collectionName}: ${error.message}`,
 				)
 				return {
@@ -108,7 +130,10 @@ export class TopicManager {
 				}
 			}
 
-			Logger.error(`Failed to create TTL index for ${collectionName}:`, error)
+			this.logger.error(
+				`Failed to create TTL index for ${collectionName}:`,
+				error,
+			)
 			return {
 				success: false,
 				message: `Failed to create TTL index: ${JSON.stringify(error)}`,
@@ -119,6 +144,18 @@ export class TopicManager {
 	async getTTLIndexInfo(collectionName: string): Promise<TTLIndexInfo | null> {
 		try {
 			const collection = this.db.collection(collectionName)
+
+			// Verificar se a collection existe primeiro
+			const collections = await this.db
+				.listCollections({
+					name: collectionName,
+				})
+				.toArray()
+
+			if (collections.length === 0) {
+				return null // Collection não existe, logo não há índice
+			}
+
 			const indexes = await collection.indexes()
 
 			const ttlIndex = indexes.find(
@@ -127,14 +164,17 @@ export class TopicManager {
 					index.expireAfterSeconds !== undefined,
 			)
 
-			if (!ttlIndex) {
+			return ttlIndex ? (ttlIndex as TTLIndexInfo) : null
+		} catch (error) {
+			if (error instanceof MongoServerError && error.code === 26) {
+				// NamespaceNotFound - collection não existe
 				return null
 			}
 
-			// Type assertion para garantir a tipagem correta
-			return ttlIndex as TTLIndexInfo
-		} catch (error) {
-			Logger.error(`Failed to get TTL index info for ${collectionName}:`, error)
+			this.logger.error(
+				`Failed to get TTL index info for ${collectionName}:`,
+				error,
+			)
 			return null
 		}
 	}
@@ -196,10 +236,46 @@ export class TopicManager {
 		try {
 			const collection = this.db.collection(collectionName)
 
-			// Dropar o index existente
-			await collection.dropIndex(`ttl_${collectionName}_timestamp`)
+			// Verificar se collection existe antes de tentar dropar índice
+			const collections = await this.db
+				.listCollections({
+					name: collectionName,
+				})
+				.toArray()
 
-			// Criar novo index
+			if (collections.length > 0) {
+				// Collection existe, tentar dropar o índice se existir
+				try {
+					await collection.dropIndex(`ttl_${collectionName}_timestamp`)
+				} catch (dropError) {
+					if (
+						dropError instanceof MongoServerError &&
+						dropError.codeName === 'IndexNotFound'
+					) {
+						// Índice não existe, não é erro
+						this.logger.info(
+							`TTL index not found for ${collectionName}, skipping drop`,
+						)
+					} else {
+						throw dropError
+					}
+				}
+			}
+
+			// Criar collection implicitamente inserindo um documento temporário
+			// e depois removendo-o (se collection não existir)
+			if (collections.length === 0) {
+				this.logger.info(
+					`Collection ${collectionName} does not exist, creating implicitly`,
+				)
+				await collection.insertOne({
+					_timestamp: new Date(),
+					_temp: true,
+				})
+				await collection.deleteOne({ _temp: true })
+			}
+
+			// Agora criar o índice TTL
 			const createResult = await this.createTTLIndex(
 				collectionName,
 				retentionMs,
@@ -212,10 +288,21 @@ export class TopicManager {
 			return {
 				success: true,
 				message: 'TTL index updated successfully',
-				indexInfo: createResult.indexInfo, // Já é TTLIndexInfo | undefined
+				indexInfo: createResult.indexInfo,
 			}
 		} catch (error) {
-			Logger.error(`Failed to update TTL index for ${collectionName}:`, error)
+			if (error instanceof MongoServerError && error.code === 26) {
+				// NamespaceNotFound - tratar gracefulmente
+				return {
+					success: false,
+					message: `Collection ${collectionName} does not exist and could not be created`,
+				}
+			}
+
+			this.logger.error(
+				`Failed to update TTL index for ${collectionName}:`,
+				error,
+			)
 			return {
 				success: false,
 				message: `Failed to update TTL index: ${JSON.stringify(error)}`,
@@ -228,49 +315,79 @@ export class TopicManager {
 			throw new Error('TopicManager not connected. Call connect() first.')
 		}
 
+		console.log(`Configuração do Tópico ${JSON.stringify(config)}`)
+
 		const now = new Date()
 		const existingTopic = (await this.topicsCollection.findOne({
 			name: config.name,
 		})) as TopicDocumentWithId | null
 
-		const topicDoc: OptionalUnlessRequiredId<TopicDocument> = {
+		// Preparar operação de update sem conflitos
+		const updateFields: Partial<OptionalUnlessRequiredId<TopicDocument>> = {
 			name: config.name,
 			collection: config.collection,
 			partitions: config.partitions,
 			retentionMs: config.retentionMs,
-			createdAt: existingTopic?.createdAt || now,
 			updatedAt: now,
+		}
+
+		// Se for novo tópico, adicionar createdAt via $setOnInsert
+		const updateOperation: Partial<OptionalUnlessRequiredId<TopicDocument>> = {
+			$set: updateFields,
+		}
+
+		if (!existingTopic) {
+			updateOperation.$setOnInsert = {
+				createdAt: now,
+			}
 		}
 
 		await this.topicsCollection.updateOne(
 			{ name: config.name },
-			{
-				$set: topicDoc,
-				$setOnInsert: {
-					createdAt: now,
-				},
-			},
+			updateOperation,
 			{ upsert: true },
 		)
 
-		// Gerenciar TTL index apenas se retentionMs for fornecido
-		if (config.retentionMs !== undefined) {
-			const hasExistingIndex = !!(await this.getTTLIndexInfo(config.collection))
+		// LÓGICA CORRIGIDA PARA MULTIPLAS PARTIÇÕES
+		for (let partition = 0; partition < config.partitions; partition++) {
+			const collectionName = this.getPartitionCollectionName(
+				config.collection,
+				partition,
+			)
 
-			if (existingTopic?.retentionMs !== config.retentionMs) {
-				// Retention mudou, atualizar index
-				await this.updateTTLIndex(config.collection, config.retentionMs)
-			} else if (!hasExistingIndex) {
-				// Novo tópico OU index não existe, criar index
-				await this.createTTLIndex(config.collection, config.retentionMs)
+			if (config.retentionMs !== undefined) {
+				// CASO 1: Retention está definida (criar/atualizar TTL)
+				const hasExistingIndex = !!(await this.getTTLIndexInfo(collectionName))
+
+				if (existingTopic?.retentionMs !== config.retentionMs) {
+					// Retention mudou, atualizar index
+					await this.updateTTLIndex(collectionName, config.retentionMs)
+				} else if (!hasExistingIndex) {
+					// Novo tópico OU index não existe, criar index
+					console.log(`Criando index TTL para ${collectionName}`)
+					await this.createTTLIndex(collectionName, config.retentionMs)
+				}
+				// Se retention é igual e index já existe, não faz nada
+			} else if (existingTopic?.retentionMs !== undefined) {
+				// CASO 2: Retention foi REMOVIDA (config.retentionMs é undefined)
+				// e antes existia uma retention → remover TTL index
+				console.log(
+					`Removendo TTL index de ${collectionName} (retention removida)`,
+				)
+				await this.removeTTLIndex(collectionName)
 			}
-			// Se retention é igual e index já existe, não faz nada
-		} else if (existingTopic?.retentionMs !== undefined) {
-			// Retention foi removida, dropar index
-			await this.removeTTLIndex(config.collection)
+			// CASO 3: retentionMs é undefined E não existia antes → não faz nada
 		}
 
-		Logger.info(`Topic ${config.name} created/updated`)
+		this.logger.info(`Topic ${config.name} created/updated`)
+	}
+
+	// Adicionar método auxiliar para nomes de partição
+	private getPartitionCollectionName(
+		baseCollection: string,
+		partition: number,
+	): string {
+		return `${baseCollection}_p${partition}`
 	}
 
 	private createIndexOperationResult(
@@ -289,29 +406,52 @@ export class TopicManager {
 		collectionName: string,
 	): Promise<IndexOperationResult> {
 		try {
-			const collection = this.db.collection(collectionName)
-			await collection.dropIndex(`ttl_${collectionName}_timestamp`)
+			// Verificar se collection existe primeiro
+			const collections = await this.db
+				.listCollections({
+					name: collectionName,
+				})
+				.toArray()
 
-			Logger.info(`TTL index removed from collection ${collectionName}`)
-			return this.createIndexOperationResult(
-				true,
-				'TTL index removed successfully',
-			)
-		} catch (error) {
-			if (
-				error instanceof MongoServerError &&
-				error.codeName === 'IndexNotFound'
-			) {
-				Logger.info(
-					`TTL index not found for ${collectionName}, nothing to remove`,
+			if (collections.length === 0) {
+				this.logger.info(
+					`Collection ${collectionName} does not exist, nothing to remove`,
 				)
 				return this.createIndexOperationResult(
 					true,
-					'TTL index not found, nothing to remove',
+					'Collection does not exist, nothing to remove',
 				)
 			}
 
-			Logger.error(`Failed to remove TTL index from ${collectionName}:`, error)
+			const collection = this.db.collection(collectionName)
+
+			try {
+				await collection.dropIndex(`ttl_${collectionName}_timestamp`)
+				this.logger.info(`TTL index removed from collection ${collectionName}`)
+				return this.createIndexOperationResult(
+					true,
+					'TTL index removed successfully',
+				)
+			} catch (error) {
+				if (
+					error instanceof MongoServerError &&
+					error.codeName === 'IndexNotFound'
+				) {
+					this.logger.info(
+						`TTL index not found for ${collectionName}, nothing to remove`,
+					)
+					return this.createIndexOperationResult(
+						true,
+						'TTL index not found, nothing to remove',
+					)
+				}
+				throw error
+			}
+		} catch (error) {
+			this.logger.error(
+				`Failed to remove TTL index from ${collectionName}:`,
+				error,
+			)
 			return this.createIndexOperationResult(
 				false,
 				`Failed to remove TTL index: ${JSON.stringify(error)}`,
@@ -406,7 +546,7 @@ export class TopicManager {
 	async disconnect(): Promise<void> {
 		if (this.client) {
 			await this.client.close()
-			Logger.info('TopicManager disconnected')
+			this.logger.info('TopicManager disconnected')
 		}
 	}
 

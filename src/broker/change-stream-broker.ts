@@ -1,3 +1,4 @@
+import { Logger } from '@/utils/logger'
 import { ChangeStreamConsumer } from '../consumer/consumer'
 import { ConsumerGroupManager } from '../consumer/consumer-group'
 import { ChangeStreamProducer } from '../producer/producer'
@@ -5,6 +6,7 @@ import { OffsetStorage } from '../storage/offset-storage'
 import {
 	BrokerConfig,
 	ConsumerConfig,
+	LogLevel,
 	ProducerConfig,
 	TopicConfig,
 } from '../types'
@@ -18,6 +20,8 @@ export class ChangeStreamBroker {
 	private producers: Map<string, ChangeStreamProducer> = new Map()
 
 	constructor(private config: BrokerConfig) {
+		this.configureGlobalLogger()
+
 		this.topicManager = new TopicManager(
 			config.mongoUri,
 			config.database || 'change-stream-broker',
@@ -29,6 +33,47 @@ export class ChangeStreamBroker {
 		)
 
 		this.consumerGroupManager = new ConsumerGroupManager()
+	}
+
+	private configureGlobalLogger(): void {
+		const logLevel = this.convertLogLevel(this.config.logLevel)
+		const logContext = this.config.logContext || 'ChangeStreamBroker'
+
+		// Configurar Logger global
+		Logger.configure({
+			level: logLevel,
+			enabled: logLevel > LogLevel.SILENT, // Desativar se for SILENT
+			context: logContext,
+		})
+
+		// Log inicial se não for SILENT
+		if (logLevel > LogLevel.SILENT) {
+			Logger.info('Broker initialized', {
+				logLevel: LogLevel[logLevel],
+				context: logContext,
+			})
+		}
+	}
+
+	private convertLogLevel(levelStr?: string): LogLevel {
+		if (!levelStr) return LogLevel.SILENT // Default: SILENT
+
+		const upperLevel = levelStr.toUpperCase()
+		switch (upperLevel) {
+			case 'SILENT':
+				return LogLevel.SILENT
+			case 'ERROR':
+				return LogLevel.ERROR
+			case 'WARN':
+				return LogLevel.WARN
+			case 'INFO':
+				return LogLevel.INFO
+			case 'DEBUG':
+				return LogLevel.DEBUG
+			default:
+				console.warn(`Unknown log level: ${levelStr}. Using SILENT.`)
+				return LogLevel.SILENT
+		}
 	}
 
 	async connect(): Promise<void> {
@@ -50,7 +95,10 @@ export class ChangeStreamBroker {
 		)
 
 		await consumer.connect()
-		this.consumers.set(`${config.groupId}-${config.topic}`, consumer)
+
+		// Chave única por grupo + tópico + partições
+		const consumerKey = `${config.groupId}-${config.topic}-${config.partitions.join(',')}`
+		this.consumers.set(consumerKey, consumer)
 
 		return consumer
 	}

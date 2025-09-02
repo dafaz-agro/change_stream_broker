@@ -10,6 +10,14 @@ import {
 	WithId,
 } from 'mongodb'
 
+export enum LogLevel {
+	SILENT = 0,
+	ERROR = 1,
+	WARN = 2,
+	INFO = 3,
+	DEBUG = 4,
+}
+
 export interface BrokerConfig {
 	mongoUri: string
 	database?: string
@@ -18,6 +26,8 @@ export interface BrokerConfig {
 	retryDelayMs?: number
 	heartbeatIntervalMs?: number
 	autoCreateTopics?: boolean
+	logLevel?: 'SILENT' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG'
+	logContext?: string
 }
 
 export interface TopicConfig {
@@ -70,11 +80,13 @@ export interface IndexOperationResult {
 export interface ConsumerConfig {
 	groupId: string
 	topic: string
+	partitions: number[]
 	autoCommit?: boolean
 	autoCommitIntervalMs?: number
 	fromBeginning?: boolean
 	maxRetries: number
 	retryDelayMs: number
+	enableOffsetMonitoring: boolean
 	options?: ChangeStreamWatchOptions
 }
 
@@ -82,6 +94,7 @@ export interface ProducerConfig {
 	topic: string
 	partitions: number
 	retentionMs: number
+	partitionStrategy?: 'hash' | 'round-robin' | 'key-based'
 }
 
 export interface Message<T = Document> {
@@ -145,7 +158,7 @@ interface ChangeStreamConsumer {
 	unsubscribe(): Promise<void>
 
 	// Gerenciamento de offsets
-	commitOffsets(): Promise<void>
+	commitOffsets(): Promise<boolean>
 	getLastProcessedOffset(): ResumeToken | null
 
 	// Status e controle

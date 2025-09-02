@@ -5,6 +5,11 @@ import { ChangeStreamConsumer } from './consumer'
 
 export class ConsumerGroupManager {
 	private consumerGroups: Map<string, ConsumerGroup> = new Map()
+	private logger: typeof Logger
+
+	constructor() {
+		this.logger = Logger.withContext('Consumer Group')
+	}
 
 	createConsumerGroup(groupId: string, topics: string[]): ConsumerGroup {
 		const group: ConsumerGroup = {
@@ -15,7 +20,7 @@ export class ConsumerGroupManager {
 		}
 
 		this.consumerGroups.set(groupId, group)
-		Logger.info(
+		this.logger.info(
 			`Consumer group ${groupId} created for topics: ${topics.join(', ')}`,
 		)
 
@@ -37,37 +42,48 @@ export class ConsumerGroupManager {
 		}
 
 		group.members.set(consumerId, consumer)
-		Logger.info(`Consumer ${consumerId} added to group ${groupId}`)
+		this.logger.info(`Consumer ${consumerId} added to group ${groupId}`)
 	}
 
 	removeMemberFromGroup(groupId: string, consumerId: string): void {
 		const group = this.consumerGroups.get(groupId)
 		if (group) {
 			group.members.delete(consumerId)
-			Logger.info(`Consumer ${consumerId} removed from group ${groupId}`)
+			this.logger.info(`Consumer ${consumerId} removed from group ${groupId}`)
 		}
 	}
 
-	updateOffset(groupId: string, topic: string, offset: ResumeToken): void {
+	updateOffset(
+		groupId: string,
+		topic: string,
+		offset: ResumeToken,
+		partition: number,
+	): void {
 		const group = this.consumerGroups.get(groupId)
 		if (group) {
-			group.lastOffsets.set(topic, offset)
+			const partitionKey = `${topic}_p${partition}`
+			group.lastOffsets.set(partitionKey, offset)
 		}
 	}
 
-	getOffset(groupId: string, topic: string): ResumeToken | undefined {
+	getOffset(
+		groupId: string,
+		topic: string,
+		partition: number,
+	): ResumeToken | undefined {
 		const group = this.consumerGroups.get(groupId)
-		return group?.lastOffsets.get(topic)
+		const partitionKey = `${topic}_p${partition}`
+		return group?.lastOffsets.get(partitionKey)
 	}
 
 	async rebalanceGroup(groupId: string): Promise<void> {
 		const group = this.consumerGroups.get(groupId)
 		if (!group) return
 
-		Logger.info(`Rebalancing consumer group ${groupId}`)
+		this.logger.info(`Rebalancing consumer group ${groupId}`)
 
 		for (const [consumerId, _] of group.members) {
-			Logger.info(`Consumer ${consumerId} in group ${groupId} rebalanced`)
+			this.logger.info(`Consumer ${consumerId} in group ${groupId} rebalanced`)
 		}
 	}
 
@@ -75,7 +91,7 @@ export class ConsumerGroupManager {
 		const group = this.consumerGroups.get(groupId)
 		if (!group) return
 
-		Logger.info(`Disconnecting all consumers in group ${groupId}`)
+		this.logger.info(`Disconnecting all consumers in group ${groupId}`)
 
 		for (const [_, consumer] of group.members) {
 			await consumer.disconnect()

@@ -90,18 +90,12 @@ await consumer.subscribe({
 		console.log('✅ Change Stream Broker configuration initialized!')
 		console.log('📁 Files created:')
 		console.log('   - change-stream/config.ts')
-		console.log('   - change-stream/message-payload.schema.ts (OBRIGATÓRIO)')
-		console.log('   - change-stream/.gitignore')
-		console.log('   - change-stream/README.md')
+		console.log('   - change-stream/message-payload.schema.ts')
 		console.log('')
 		console.log('📝 Next steps:')
 		console.log('   1. Review and customize the generated files')
 		console.log('   2. Run: npx csbroker generate')
-		console.log('   3. Use the generated client in your application')
-		console.log('')
-		console.log(
-			'⚠️  OBS: message-payload.schema.ts é obrigatório para type safety!',
-		)
+		console.log('   3. Import from: @dafaz/change-stream-broker/generated')
 	} catch (error) {
 		console.error('❌ Failed to initialize configuration:')
 

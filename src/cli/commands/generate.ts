@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { format } from 'date-fns'
 import dotenv from 'dotenv'
 import fs from 'fs-extra'
 import { MongoClient } from 'mongodb'
@@ -22,6 +23,149 @@ interface ConfigAnalysis {
 	consumers: Array<{ name: string; config: ConsumerConfig }>
 }
 
+async function generateIndexFile(outputDir: string): Promise<void> {
+	const indexContent = `// Auto-generated index file
+export { broker } from './broker.client'
+export * from './broker.client'
+
+// Utility function to list available backups
+export async function listClientBackups(): Promise<string[]> {
+  const fs = require('fs').promises
+  const path = require('path')
+  
+  try {
+    const files = await fs.readdir(__dirname)
+    return files
+      .filter(file => file.startsWith('broker.client.ts_') && !file.endsWith('.map'))
+      .sort()
+      .reverse() // Most recent first
+  } catch (error) {
+    return []
+  }
+}
+
+// Utility function to get backup content
+export async function getBackupContent(backupName: string): Promise<string> {
+  const fs = require('fs').promises
+  const path = require('path')
+  
+  try {
+    const content = await fs.readFile(path.join(__dirname, backupName), 'utf-8')
+    return content
+  } catch (error) {
+    throw new Error(\`Backup \${backupName} not found\`)
+  }
+}
+`
+	await fs.writeFile(path.join(outputDir, 'index.ts'), indexContent)
+}
+
+export async function getPackageDir(): Promise<string> {
+	try {
+		// Tentativa 1: Usando require.resolve (production)
+		return path.dirname(require.resolve('@dafaz/change-stream-broker'))
+	} catch {
+		// Tentativa 2: Procurar manualmente no node_modules (dev com link)
+		const possiblePaths = [
+			path.join(
+				process.cwd(),
+				'node_modules',
+				'@dafaz',
+				'change-stream-broker',
+			),
+			path.join(
+				process.cwd(),
+				'..',
+				'node_modules',
+				'@dafaz',
+				'change-stream-broker',
+			),
+			path.join(
+				process.cwd(),
+				'..',
+				'..',
+				'node_modules',
+				'@dafaz',
+				'change-stream-broker',
+			),
+		]
+
+		for (const possiblePath of possiblePaths) {
+			if (await fs.pathExists(possiblePath)) {
+				return possiblePath
+			}
+		}
+
+		// Tentativa 3: Se estiver em monorepo ou estrutura alternativa
+		const nodeModulesPath = path.join(process.cwd(), 'node_modules')
+		const packages = await fs.readdir(nodeModulesPath).catch(() => [])
+
+		for (const pkg of packages) {
+			if (pkg.startsWith('@dafaz')) {
+				const daFazPath = path.join(nodeModulesPath, pkg)
+				const brokerPath = path.join(daFazPath, 'change-stream-broker')
+				if (await fs.pathExists(brokerPath)) {
+					return brokerPath
+				}
+			}
+		}
+
+		throw new Error(
+			'Could not find @dafaz/change-stream-broker package. ' +
+				'Make sure it is installed or properly linked with npm link.',
+		)
+	}
+}
+
+export function generateTimestamp(): string {
+	return format(new Date(), 'yyyyMMdd_HHmmss')
+}
+
+async function backupExistingClient(outputPath: string): Promise<void> {
+	if (await fs.pathExists(outputPath)) {
+		const timestamp = generateTimestamp()
+		const backupPath = `${outputPath}_${timestamp}`
+
+		await fs.copy(outputPath, backupPath)
+		console.log(`📦 Backup created: ${path.basename(backupPath)}`)
+	}
+}
+
+// Função para listar backups antigos (opcional: limpeza)
+async function listBackups(outputDir: string): Promise<string[]> {
+	try {
+		const files = await fs.readdir(outputDir)
+		return files
+			.filter(
+				(file) =>
+					file.startsWith('broker.client.ts_') && file !== 'broker.client.ts',
+			)
+			.sort()
+	} catch {
+		return []
+	}
+}
+
+async function cleanupOldBackups(
+	outputDir: string,
+	maxBackups: number = 10,
+): Promise<void> {
+	try {
+		const backups = await listBackups(outputDir)
+
+		if (backups.length > maxBackups) {
+			const backupsToDelete = backups.slice(0, backups.length - maxBackups)
+
+			for (const backup of backupsToDelete) {
+				await fs.remove(path.join(outputDir, backup))
+				console.log(`🗑️  Deleted old backup: ${backup}`)
+			}
+		}
+	} catch (error) {
+		console.warn('Could not cleanup old backups:', error)
+	}
+}
+
 export async function generateClient(): Promise<void> {
 	try {
 		validateEnvVariables()
@@ -30,7 +174,10 @@ export async function generateClient(): Promise<void> {
 		const configDir = path.join(process.cwd(), 'change-stream')
 		const configPath = path.join(configDir, 'config.ts')
 		const schemaPath = path.join(configDir, 'message-payload.schema.ts')
-		const outputDir = path.join(process.cwd(), 'src', 'change-stream')
+
+		const packageDir = await getPackageDir()
+
+		const outputDir = path.join(packageDir, 'client')
 		const outputPath = path.join(outputDir, 'broker.client.ts')
 
 		// Verificar se os arquivos existem
@@ -42,6 +189,9 @@ export async function generateClient(): Promise<void> {
 				'message-payload.schema.ts not found. Run "csbroker init" first.',
 			)
 		}
+
+		// 1. Fazer backup do arquivo atual se existir
+		await backupExistingClient(outputPath)
 
 		// Analisar o schema para extrair interfaces e mapeamentos
 		const schemaContent = await fs.readFile(schemaPath, 'utf-8')
@@ -58,7 +208,13 @@ export async function generateClient(): Promise<void> {
 		await fs.writeFile(outputPath, clientContent)
 
 		console.log('✅ Client generated successfully!')
-		console.log(`📁 File created: src/change-stream/broker.client.ts`)
+		console.log(
+			'📁 File created: node_modules/@dafaz/change-stream-broker/client/broker.client.ts',
+		)
+
+		await generateIndexFile(outputDir)
+
+		await cleanupOldBackups(outputDir, 10) // Manter últimos 10 backups
 	} catch (error) {
 		console.error('❌ Failed to generate client:')
 		if (error instanceof Error) {
@@ -155,7 +311,7 @@ function analyzeConfig(content: string): ConfigAnalysis {
 		// Extrair configuração do broker
 		if (
 			ts.isVariableDeclaration(node) &&
-			node.name.getText() === 'broker' &&
+			node.name.getText() === 'brokerConfig' &&
 			node.initializer &&
 			ts.isCallExpression(node.initializer) &&
 			node.initializer.expression.getText() === 'defineBroker'
@@ -276,371 +432,6 @@ function analyzeConfig(content: string): ConfigAnalysis {
 	return { brokerConfig: completeConfig, topics, producers, consumers }
 }
 
-// function generateGenericClient(
-// 	schema: SchemaAnalysis,
-// 	config: ConfigAnalysis,
-// ): string {
-// 	const capitalize = (str: string): string => {
-// 		return str.charAt(0).toUpperCase() + str.slice(1)
-// 	}
-
-// 	function formatValue(value: any): string {
-// 		if (typeof value === 'string') {
-// 			if (value.includes('process.env.')) {
-// 				return value
-// 			}
-// 			return `'${value}'`
-// 		}
-// 		if (typeof value === 'number') return value.toString()
-// 		if (typeof value === 'boolean') return value.toString()
-// 		if (Array.isArray(value)) {
-// 			return `[${value.map((v) => formatValue(v)).join(', ')}]`
-// 		}
-// 		if (typeof value === 'object' && value !== null) {
-// 			// Verificação profunda para objetos - só inclui propriedades definidas
-// 			const entries = Object.entries(value)
-// 				.filter(([_, val]) => val !== undefined && val !== null) // Filtra undefined/null
-// 				.map(([key, val]) => `${key}: ${formatValue(val)}`)
-
-// 			if (entries.length === 0) return 'undefined'
-// 			return `{ ${entries.join(', ')} }`
-// 		}
-// 		return String(value)
-// 	}
-
-// 	const brokerConfigString = Object.entries(config.brokerConfig)
-// 		.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
-// 		.join(',\n')
-
-// 	// Seções condicionais
-// 	const topicsSection =
-// 		config.topics.length > 0
-// 			? `
-// // ==============================================
-// // PRE-CONFIGURED TOPICS (from config.ts)
-// // ==============================================
-// ${config.topics
-// 	.map(
-// 		(topic) => `
-// export const ${topic.name} = {
-// ${Object.entries(topic.config)
-// 	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
-// 	.join(',\n')}
-// };
-// `,
-// 	)
-// 	.join('')}
-// `
-// 			: ''
-
-// 	const producersSection =
-// 		config.producers.length > 0
-// 			? `
-// // ==============================================
-// // PRE-CONFIGURED PRODUCERS (from config.ts)
-// // ==============================================
-// ${config.producers
-// 	.map(
-// 		(producer) => `
-// export const ${producer.name}: ProducerConfig = {
-// ${Object.entries(producer.config)
-// 	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
-// 	.join(',\n')}
-// };
-// `,
-// 	)
-// 	.join('')}
-// `
-// 			: ''
-
-// 	const consumersSection =
-// 		config.consumers.length > 0
-// 			? `
-// 			// ==============================================
-// 			// PRE-CONFIGURED CONSUMERS (from config.ts)
-// 			// ==============================================
-// 			${config.consumers
-// 				.map((consumer) => {
-// 					const configEntries = Object.entries(consumer.config)
-// 						.filter(([key, value]) => {
-// 							// Para options, só inclui se tiver propriedades definidas
-// 							if (key === 'options') {
-// 								return (
-// 									value !== undefined &&
-// 									value !== null &&
-// 									typeof value === 'object' &&
-// 									Object.keys(value).length > 0
-// 								)
-// 							}
-// 							// Para outras propriedades, usa lógica normal
-// 							return value !== undefined && value !== null
-// 						})
-// 						.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
-
-// 					return `
-// 			export const ${consumer.name}: ConsumerConfig = {
-// 			${configEntries.join(',\n')}
-// 			};
-// 			`
-// 				})
-// 				.join('')}
-// 			`
-// 			: ''
-
-// 	// CORREÇÃO: Métodos producer com assinatura correta
-// 	const producerHelpersSection =
-// 		config.producers.length > 0
-// 			? `
-// // ==============================================
-// // PRE-CONFIGURED PRODUCER METHODS
-// // ==============================================
-// ${config.producers
-// 	.map((producer) => {
-// 		const mapping = schema.topicMappings.find(
-// 			(m) => m.topic === producer.config.topic,
-// 		)
-// 		const payloadType = mapping ? mapping.payloadType : 'Record<string, any>'
-
-// 		return `
-// export async function sendMessageWith${capitalize(producer.name)}(
-//   message: ${payloadType},
-//   key?: string,
-//   timestamp?: Date,
-//   headers?: Header
-// ): Promise<void> {
-//   const producer = await broker.createProducer(${producer.name});
-
-//   let messageToSend!: Message
-
-// 	// Apenas adiciona as propriedades se foram fornecidas
-// 	if (key !== undefined) messageToSend.key = key
-// 	if (timestamp !== undefined) messageToSend.timestamp = timestamp
-
-// 	// Verificação profunda do Header
-// 	if (
-// 		headers !== undefined &&
-// 		(headers.eventType !== undefined || headers.source !== undefined)
-// 	) {
-// 		messageToSend.headers = {}
-
-// 		if (headers.eventType !== undefined) {
-// 			messageToSend.headers.eventType = headers.eventType
-// 		}
-
-// 		if (headers.source !== undefined) {
-// 			messageToSend.headers.source = headers.source
-// 		}
-// 	}
-
-// 	messageToSend = {
-// 		value: message,
-// 		...messageToSend,
-// 	}
-
-// 	await producer.send(messageToSend)
-// }
-// `
-// 	})
-// 	.join('')}
-// `
-// 			: ''
-
-// 	const consumerHelpersSection =
-// 		config.consumers.length > 0
-// 			? `
-// // ==============================================
-// // PRE-CONFIGURED CONSUMER METHODS
-// // ==============================================
-// ${config.consumers
-// 	.map(
-// 		(consumer) => `
-// export async function get${capitalize(consumer.name)}(): Promise<any> {
-// return await broker.createConsumer(${consumer.name});
-// }
-// `,
-// 	)
-// 	.join('')}
-// `
-// 			: ''
-
-// 	// CORREÇÃO: Métodos genéricos com assinatura correta
-// 	const genericHelpersSection = `
-// // ==============================================
-// // GENERIC HELPER METHODS
-// // ==============================================
-// export async function connectBroker(): Promise<void> {
-//   await broker.connect();
-//   ${config.topics.map((t) => `await broker.createTopic(${t.name});`).join('\n  ')}
-// }
-
-// export async function disconnectBroker(): Promise<void> {
-//   await broker.disconnect();
-// }
-
-// ${
-// 	config.producers.length > 0
-// 		? `export async function sendMessage<T extends MessageType>(
-// 	topic: T,
-// 	message: MessagePayloads[T],
-// 	key?: string,
-// 	timestamp?: Date,
-// 	headers?: Header
-// ): Promise<void> {
-// 	const producerConfig = getProducerConfigForTopic(topic.toString())
-
-// const producer = await broker.createProducer(producerConfig);
-
-// let messageToSend!: Message
-
-// // Apenas adiciona as propriedades se foram fornecidas
-// 	if (key !== undefined) messageToSend.key = key;
-// 	if (timestamp !== undefined) messageToSend.timestamp = timestamp;
-
-// 	// Verificação profunda do Header
-// 	if (headers !== undefined &&
-// 			(headers.eventType !== undefined || headers.source !== undefined)) {
-// 		messageToSend.headers = {};
-
-// 		if (headers.eventType !== undefined) {
-// 			messageToSend.headers.eventType = headers.eventType;
-// 		}
-
-// 		if (headers.source !== undefined) {
-// 			messageToSend.headers.source = headers.source;
-// 		}
-// 	}
-
-// 	messageToSend = {
-// 	value: message,
-// 	...messageToSend,
-// 	}
-
-// 	await producer.send(messageToSend);
-// }`
-// 		: ''
-// }
-
-// ${
-// 	config.consumers.length > 0
-// 		? `
-// export async function getConsumer(
-// groupId: string,
-// topic: MessageType
-// ): Promise<any> {
-// const consumerConfig = getConsumerConfigForTopic(groupId, topic.toString())
-
-// return await broker.createConsumer(consumerConfig);
-// }
-// 	`
-// 		: ''
-// }
-
-// ${
-// 	config.producers.length > 0
-// 		? `
-// export async function getProducer(topic: MessageType): Promise<any> {
-// const producerConfig = getProducerConfigForTopic(topic.toString())
-
-// return await broker.createProducer(producerConfig);
-// }
-// 	`
-// 		: ''
-// }
-
-// // ==============================================
-// // CONFIGURATION HELPER FUNCTIONS
-// // ==============================================
-// ${
-// 	config.producers.length > 0
-// 		? `
-// function getProducerConfigForTopic(topic: string): ProducerConfig {
-// switch (topic) {
-// 	${config.producers
-// 		.map(
-// 			(producer) => `
-// 	case '${producer.config.topic}':
-// 		return ${producer.name};`,
-// 		)
-// 		.join('')}
-// 	default:
-// 		 throw new Error(\`Producer configuration not found for topic: \${topic}. Please define it in change-stream/config.ts\`);
-// }
-// }
-// `
-// 		: ''
-// }
-
-// ${
-// 	config.consumers.length > 0
-// 		? `
-// function getConsumerConfigForTopic(groupId: string, topic: string): ConsumerConfig {
-// ${config.consumers
-// 	.map(
-// 		(consumer) => `
-// if (groupId === '${consumer.config.groupId}' && topic === '${consumer.config.topic}') {
-// 	return ${consumer.name};
-// }`,
-// 	)
-// 	.join('')}
-
-// throw new Error(\`Consumer configuration not found for group: \${groupId} and topic: \${topic}. Please define it in change-stream/config.ts\`);
-// }
-// `
-// 		: ''
-// }
-// `
-
-// 	return `// AUTO-GENERATED FILE - DO NOT EDIT
-// // Generated from change-stream/config.ts and change-stream/message-payload.schema.ts
-
-// import {
-// 	ChangeStreamBroker,
-// 	ConsumerConfig,
-// 	Header,
-// 	Message,
-// 	ProducerConfig,
-// } from '@dafaz/change-stream-broker'
-
-// // ==============================================
-// // MESSAGE PAYLOAD INTERFACES (from schema)
-// // ==============================================
-// ${schema.interfaces.map((iface) => iface.content).join('\n\n')}
-
-// // ==============================================
-// // TOPIC TO PAYLOAD MAPPING
-// // ==============================================
-// export interface MessagePayloads {
-// ${schema.topicMappings.map((mapping) => `  '${mapping.topic}': ${mapping.payloadType};`).join('\n')}
-// [topic: string]: Record<string, any>;
-// }
-
-// // ==============================================
-// // BROKER INSTANCE (dynamically configured)
-// // ==============================================
-// export const broker = new ChangeStreamBroker({
-// ${brokerConfigString}
-// });
-
-// ${topicsSection}
-// ${producersSection}
-// ${consumersSection}
-
-// // ==============================================
-// // TYPE UTILITIES
-// // ==============================================
-// export type MessageType = keyof MessagePayloads;
-
-// ${producerHelpersSection}
-// ${consumerHelpersSection}
-// ${genericHelpersSection}
-
-// // ==============================================
-// // DEFAULT EXPORT
-// // ==============================================
-// export default broker;
-// `
-// }
-
 function generateGenericClient(
 	schema: SchemaAnalysis,
 	config: ConfigAnalysis,
@@ -662,8 +453,9 @@ function generateGenericClient(
 			return `[${value.map((v) => formatValue(v)).join(', ')}]`
 		}
 		if (typeof value === 'object' && value !== null) {
+			// Verificação profunda para objetos - só inclui propriedades definidas
 			const entries = Object.entries(value)
-				.filter(([_, val]) => val !== undefined && val !== null)
+				.filter(([_, val]) => val !== undefined && val !== null) // Filtra undefined/null
 				.map(([key, val]) => `${key}: ${formatValue(val)}`)
 
 			if (entries.length === 0) return 'undefined'
@@ -672,41 +464,32 @@ function generateGenericClient(
 		return String(value)
 	}
 
-	const brokerConfigString = Object.entries(config.brokerConfig)
-		.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
-		.join(',\n')
+	// Seção de configurações
+	const configSection = `
+// ==============================================
+// CONFIGURATIONS (from config.ts)
+// ==============================================
 
-	// Seções condicionais
-	const topicsSection =
-		config.topics.length > 0
-			? `
-// ==============================================
-// PRE-CONFIGURED TOPICS (from config.ts)
-// ==============================================
-${config.topics
-	.map(
-		(topic) => `
-export const ${topic.name} = {
-${Object.entries(topic.config)
+// Broker Configuration
+
+if (!process.env.MONGODB_BROKER_URI) {
+	throw new Error('Environment variable MONGODB_BROKER_URI is not set.')
+}
+
+if (!process.env.MONGODB_BROKER_DATABASE) {
+	throw new Error('Environment variable MONGODB_BROKER_URI is not set.')
+}
+
+export const brokerConfig: BrokerConfig = {
+${Object.entries(config.brokerConfig)
 	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
 	.join(',\n')}
 };
-`,
-	)
-	.join('')}
-`
-			: ''
 
-	const producersSection =
-		config.producers.length > 0
-			? `
-// ==============================================
-// PRE-CONFIGURED PRODUCERS (from config.ts)
-// ==============================================
+// Producers Configuration
 ${config.producers
 	.map(
-		(producer) => `
-export const ${producer.name}: ProducerConfig = {
+		(producer) => `export const ${producer.name}: ProducerConfig = {
 ${Object.entries(producer.config)
 	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
 	.join(',\n')}
@@ -714,47 +497,92 @@ ${Object.entries(producer.config)
 `,
 	)
 	.join('')}
-`
-			: ''
 
-	const consumersSection =
-		config.consumers.length > 0
+// Consumers Configuration
+${config.consumers
+	.map(
+		(consumer) => `export const ${consumer.name}: ConsumerConfig = {
+${Object.entries(consumer.config)
+	.filter(([_key, value]) => value !== undefined && value !== null)
+	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
+	.join(',\n')}
+};
+`,
+	)
+	.join('')}
+`
+
+	// Seção de métodos para Producers
+	const producerHelpersSection =
+		config.producers.length > 0
 			? `
 // ==============================================
-// PRE-CONFIGURED CONSUMERS (from config.ts)
+// PRODUCER METHODS
 // ==============================================
-${config.consumers
-	.map((consumer) => {
-		const configEntries = Object.entries(consumer.config)
-			.filter(([key, value]) => {
-				if (key === 'options') {
-					return (
-						value !== undefined &&
-						value !== null &&
-						typeof value === 'object' &&
-						Object.keys(value).length > 0
-					)
-				}
-				return value !== undefined && value !== null
-			})
-			.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
+${config.producers
+	.map((producer) => {
+		const mapping = schema.topicMappings.find(
+			(m) => m.topic === producer.config.topic,
+		)
+		const payloadType = mapping ? mapping.payloadType : 'any'
+		const producerName = capitalize(producer.name)
 
 		return `
-export const ${consumer.name}: ConsumerConfig = {
-${configEntries.join(',\n')}
-};
+/**
+ * Send message to ${producer.config.topic}
+ */
+export async function sendTo${producerName}(
+  message: ${payloadType},
+  options?: {
+    key?: string;
+    timestamp?: Date;
+    headers?: Header;
+  }
+): Promise<void> {
+  const producer = await broker.createProducer(${producer.name});
+
+  let messageToSend!: Message
+
+  if (options?.key !== undefined) messageToSend.key = options?.key;
+  if (options?.timestamp !== undefined) messageToSend.timestamp = options.timestamp;
+
+  if (options?.headers !== undefined && 
+      (options.headers?.eventType !== undefined || options.headers?.source !== undefined)) {
+        
+      messageToSend.headers = {};
+    
+    if (options.headers?.eventType !== undefined) {
+      messageToSend.headers.eventType = options.headers?.eventType;
+    }
+    
+    if (options.headers?.source !== undefined) {
+      messageToSend.headers.source = options.headers.source;
+    }
+  }
+
+  messageToSend.value = message;
+
+  await producer.send(messageToSend);
+}
+
+/**
+ * Get ${producer.config.topic} producer instance
+ */
+export async function get${producerName}(): Promise<ChangeStreamProducer> {
+  return await broker.createProducer(${producer.name});
+}
 `
 	})
 	.join('')}
 `
 			: ''
 
-	// NOVA SEÇÃO: Métodos com binding de contexto para consumers
-	const boundConsumerHelpersSection =
+	// Seção de métodos para Consumers
+	const consumerHelpersSection =
 		config.consumers.length > 0
 			? `
 // ==============================================
-// CONTEXT-BOUND CONSUMER METHODS (AUTO-BINDING)
+// CONSUMER METHODS (with auto-binding)
 // ==============================================
 ${config.consumers
 	.map((consumer) => {
@@ -767,11 +595,8 @@ ${config.consumers
 		return `
 /**
  * Subscribe to ${consumer.config.topic} with automatic context binding
- * @param context The 'this' context for handler methods
- * @param handlers Object containing handler and optional errorHandler
- * @returns The created consumer instance
  */
-export async function subscribe${consumerName}(
+export async function subscribeTo${consumerName}(
   context: any,
   handlers: {
     handler: (record: ConsumerRecord<${payloadType}>) => Promise<void>;
@@ -779,7 +604,7 @@ export async function subscribe${consumerName}(
   }
 ): Promise<ChangeStreamConsumer> {
   const consumer = await broker.createConsumer(${consumer.name});
-  
+
   const boundConfig: MessageHandlerConfig<${payloadType}> = {
     handler: handlers.handler.bind(context),
     errorHandler: handlers.errorHandler?.bind(context),
@@ -793,8 +618,7 @@ export async function subscribe${consumerName}(
 }
 
 /**
- * Get ${consumer.config.topic} consumer instance (without auto-binding)
- * @returns The consumer instance for manual configuration
+ * Get ${consumer.config.topic} consumer instance
  */
 export async function get${consumerName}(): Promise<ChangeStreamConsumer> {
   return await broker.createConsumer(${consumer.name});
@@ -805,127 +629,86 @@ export async function get${consumerName}(): Promise<ChangeStreamConsumer> {
 `
 			: ''
 
-	const producerHelpersSection =
-		config.producers.length > 0
-			? `
-// ==============================================
-// PRE-CONFIGURED PRODUCER METHODS
-// ==============================================
-${config.producers
-	.map((producer) => {
-		const mapping = schema.topicMappings.find(
-			(m) => m.topic === producer.config.topic,
-		)
-		const payloadType = mapping ? mapping.payloadType : 'Record<string, any>'
-
-		return `
-export async function sendMessageWith${capitalize(producer.name)}(
-  message: ${payloadType},
-  key?: string,
-  timestamp?: Date,
-  headers?: Header
-): Promise<void> {
-  const producer = await broker.createProducer(${producer.name});
-  
-  const messageToSend: Partial<Message> = { value: message };
-
-  if (key !== undefined) messageToSend.key = key;
-  if (timestamp !== undefined) messageToSend.timestamp = timestamp;
-
-  if (headers !== undefined && 
-      (headers.eventType !== undefined || headers.source !== undefined)) {
-    messageToSend.headers = {};
-    
-    if (headers.eventType !== undefined) {
-      messageToSend.headers.eventType = headers.eventType;
-    }
-    
-    if (headers.source !== undefined) {
-      messageToSend.headers.source = headers.source;
-    }
-  }
-
-  await producer.send(messageToSend as Message);
-}
-`
-	})
-	.join('')}
-`
-			: ''
-
+	// Métodos genéricos
 	const genericHelpersSection = `
 // ==============================================
-// GENERIC HELPER METHODS
+// GENERIC METHODS
 // ==============================================
-export async function connectBroker(): Promise<void> {
+
+/**
+ * Initialize broker and create all configured topics
+ */
+export async function initializeBroker(): Promise<void> {
   await broker.connect();
-  ${config.topics.map((t) => `await broker.createTopic(${t.name});`).join('\n  ')}
+  ${config.topics.map((topic) => `await broker.createTopic(${topic.name});`).join('\n  ')}
 }
 
+/**
+ * Disconnect broker
+ */
 export async function disconnectBroker(): Promise<void> {
   await broker.disconnect();
 }
 
+// Generic producer method
 ${
 	config.producers.length > 0
 		? `
 export async function sendMessage<T extends MessageType>(
-  topic: T, 
-  message: MessagePayloads[T], 
-  key?: string,
-  timestamp?: Date,
-  headers?: Header
+  topic: T,
+  message: MessagePayloads[T],
+  options?: {
+    key?: string;
+    timestamp?: Date;
+    headers?: Header;
+  }
 ): Promise<void> {
-  const producerConfig = getProducerConfigForTopic(topic.toString());
+  const producerConfig = getProducerConfig(topic.toString());
   const producer = await broker.createProducer(producerConfig);
-  
-  const messageToSend: Partial<Message> = { value: message };
 
-  if (key !== undefined) messageToSend.key = key;
-  if (timestamp !== undefined) messageToSend.timestamp = timestamp;
+ let messageToSend!: Message
 
-  if (headers !== undefined && 
-      (headers.eventType !== undefined || headers.source !== undefined)) {
-    messageToSend.headers = {};
+  if (options?.key !== undefined) messageToSend.key = options?.key;
+  if (options?.timestamp !== undefined) messageToSend.timestamp = options.timestamp;
+
+  if (options?.headers !== undefined && 
+      (options.headers?.eventType !== undefined || options.headers?.source !== undefined)) {
+        
+      messageToSend.headers = {};
     
-    if (headers.eventType !== undefined) {
-      messageToSend.headers.eventType = headers.eventType;
+    if (options.headers?.eventType !== undefined) {
+      messageToSend.headers.eventType = options.headers?.eventType;
     }
     
-    if (headers.source !== undefined) {
-      messageToSend.headers.source = headers.source;
+    if (options.headers?.source !== undefined) {
+      messageToSend.headers.source = options.headers.source;
     }
   }
 
-  await producer.send(messageToSend as Message);
+  messageToSend.value = message;
+
+  await producer.send(messageToSend);
 }
 `
 		: ''
 }
 
+// Generic consumer method
 ${
 	config.consumers.length > 0
 		? `
-export async function getConsumer(
-  groupId: string, 
-  topic: MessageType
-): Promise<ChangeStreamConsumer> {
-  const consumerConfig = getConsumerConfigForTopic(groupId, topic.toString());
-  return await broker.createConsumer(consumerConfig);
-}
-
-export async function subscribeConsumer<T extends MessageType>(
-  groupId: string,
+export async function subscribeToTopic<T extends MessageType>(
   topic: T,
+  groupId: string,
   context: any,
   handlers: {
     handler: (record: ConsumerRecord<MessagePayloads[T]>) => Promise<void>;
     errorHandler?: (error: Error, record?: ConsumerRecord<MessagePayloads[T]>) => Promise<void>;
   }
 ): Promise<ChangeStreamConsumer> {
-  const consumerConfig = getConsumerConfigForTopic(groupId, topic.toString());
+  const consumerConfig = getConsumerConfig(groupId, topic.toString());
   const consumer = await broker.createConsumer(consumerConfig);
-  
+
   const boundConfig: MessageHandlerConfig<MessagePayloads[T]> = {
     handler: handlers.handler.bind(context),
     errorHandler: handlers.errorHandler?.bind(context),
@@ -941,35 +724,21 @@ export async function subscribeConsumer<T extends MessageType>(
 		: ''
 }
 
+// Configuration helpers
 ${
 	config.producers.length > 0
 		? `
-export async function getProducer(topic: MessageType): Promise<ChangeStreamProducer> {
-  const producerConfig = getProducerConfigForTopic(topic.toString());
-  return await broker.createProducer(producerConfig);
-}
-`
-		: ''
-}
+function getProducerConfig(topic: string): ProducerConfig {
+  ${config.producers
+		.map(
+			(producer) => `
+  if (topic === '${producer.config.topic}') {
+    return ${producer.name};
+  }`,
+		)
+		.join('')}
 
-// ==============================================
-// CONFIGURATION HELPER FUNCTIONS
-// ==============================================
-${
-	config.producers.length > 0
-		? `
-function getProducerConfigForTopic(topic: string): ProducerConfig {
-  switch (topic) {
-    ${config.producers
-			.map(
-				(producer) => `
-    case '${producer.config.topic}':
-      return ${producer.name};`,
-			)
-			.join('')}
-    default:
-      throw new Error(\`Producer configuration not found for topic: \${topic}\`);
-  }
+  throw new Error(\`Producer not configured for topic: \${topic}\`);
 }
 `
 		: ''
@@ -978,7 +747,7 @@ function getProducerConfigForTopic(topic: string): ProducerConfig {
 ${
 	config.consumers.length > 0
 		? `
-function getConsumerConfigForTopic(groupId: string, topic: string): ConsumerConfig {
+function getConsumerConfig(groupId: string, topic: string): ConsumerConfig {
   ${config.consumers
 		.map(
 			(consumer) => `
@@ -988,7 +757,7 @@ function getConsumerConfigForTopic(groupId: string, topic: string): ConsumerConf
 		)
 		.join('')}
 
-  throw new Error(\`Consumer configuration not found for group: \${groupId} and topic: \${topic}\`);
+  throw new Error(\`Consumer not configured for group: \${groupId} and topic: \${topic}\`);
 }
 `
 		: ''
@@ -999,15 +768,16 @@ function getConsumerConfigForTopic(groupId: string, topic: string): ConsumerConf
 // Generated from change-stream/config.ts and change-stream/message-payload.schema.ts
 
 import {
-  ChangeStreamBroker,
-  ChangeStreamConsumer,
-  ChangeStreamProducer,
-  ConsumerConfig,
-  ConsumerRecord,
-  Header,
-  Message,
-  MessageHandlerConfig,
-  ProducerConfig,
+	BrokerConfig,
+	ChangeStreamBroker,
+	ChangeStreamConsumer,
+	ChangeStreamProducer,
+	ConsumerConfig,
+	ConsumerRecord,
+	Header,
+	Message,
+	MessageHandlerConfig,
+	ProducerConfig,
 } from '@dafaz/change-stream-broker'
 
 // ==============================================
@@ -1023,16 +793,12 @@ ${schema.topicMappings.map((mapping) => `  '${mapping.topic}': ${mapping.payload
   [topic: string]: Record<string, any>;
 }
 
-// ==============================================
-// BROKER INSTANCE (dynamically configured)
-// ==============================================
-export const broker = new ChangeStreamBroker({
-${brokerConfigString}
-});
+${configSection}
 
-${topicsSection}
-${producersSection}
-${consumersSection}
+// ==============================================
+// BROKER INSTANCE
+// ==============================================
+export const broker = new ChangeStreamBroker(brokerConfig);
 
 // ==============================================
 // TYPE UTILITIES
@@ -1040,7 +806,7 @@ ${consumersSection}
 export type MessageType = keyof MessagePayloads;
 
 ${producerHelpersSection}
-${boundConsumerHelpersSection}
+${consumerHelpersSection}
 ${genericHelpersSection}
 
 // ==============================================

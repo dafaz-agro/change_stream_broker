@@ -1,11 +1,11 @@
 {
   "name": "@dafaz/change-stream-broker",
-  "version": "1.2.0",
+  "version": "1.0.0",
   "description": "A reusable MongoDB Change Stream manager",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "csbroker": "./dist/cli/index.js"
+    "csbroker": "dist/cli/index.js"
   },
   "type": "commonjs",
   "files": [
@@ -26,8 +26,6 @@
   "keywords": [
     "mongodb",
     "change-stream",
-    "resume-token",
-    "event-driven",
     "microservices"
   ],
   "author": "asammarco",

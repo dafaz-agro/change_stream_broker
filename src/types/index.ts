@@ -101,7 +101,15 @@ export interface Message<T = Document> {
 	key?: string
 	value: T
 	timestamp: Date
-	headers?: Record<string, string>
+	headers?: Header
+}
+
+export interface Header {
+	eventType?: string
+	source?: string
+	'operation-type'?: ChangeStreamEvent['operationType']
+	'cluster-time'?: string
+	'document-key'?: string
 }
 
 export interface ConsumerRecord<T extends Document = Document> {

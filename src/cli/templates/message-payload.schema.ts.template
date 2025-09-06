@@ -1,0 +1,26 @@
+// ==============================================
+// EXAMPLE - MESSAGE PAYLOAD SCHEMAS
+// ==============================================
+
+export interface PurchaseCreatedPayload {
+	customer: {
+		id: string
+		authUserId: string
+	}
+	product: {
+		id: string
+		title: string
+		slug: string
+	}
+}
+
+
+// ==============================================
+// TOPIC TO PAYLOAD MAPPING (AUTO-GENERATED)
+// ==============================================
+
+export interface MessagePayloads {
+	'purchases.new-purchase': PurchaseCreatedPayload
+
+	[topic: string]: Record<string, any>
+}

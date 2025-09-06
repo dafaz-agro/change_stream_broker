@@ -1,17 +1,25 @@
 {
-  "name": "@dafaz/change_stream_broker",
+  "name": "@dafaz/change-stream-broker",
   "version": "1.1.0",
   "description": "A reusable MongoDB Change Stream manager",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "csbroker": "./dist/cli/index.js"
+  },
+  "type": "commonjs",
   "files": [
     "dist",
+    "templates",
     "README.md"
   ],
   "private": false,
   "scripts": {
+    "clean": "rm -rf dist",
+    "prepack": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc && tsc-alias",
+    "build": "tsc && tsc-alias && npm run copy:templates",
+    "copy:templates": "copyfiles -f src/cli/templates/**/*.template dist/cli/templates/",
     "lint": "npx @biomejs/biome check --write"
   },
   "keywords": [
@@ -25,12 +33,21 @@
   "license": "MIT",
   "devDependencies": {
     "@biomejs/biome": "2.2.2",
+    "@types/dotenv": "^6.1.1",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.9",
     "@types/node": "^24.3.0",
-    "tsc-alias": "^1.8.16"
+    "copyfiles": "^2.4.1",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
-    "mongodb": "^6.19.0",
-    "typescript": "^5.9.2"
+    "chalk": "^5.6.0",
+    "commander": "^14.0.0",
+    "dotenv": "^17.2.2",
+    "fs-extra": "^11.3.1",
+    "inquirer": "^12.9.4",
+    "mongodb": "^6.19.0"
   },
   "peerDependencies": {
     "mongodb": "^6.19.0"

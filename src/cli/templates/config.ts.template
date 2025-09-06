@@ -1,0 +1,54 @@
+import {
+	defineBroker,
+	defineConsumer,
+	defineProducer,
+} from '@dafaz/change-stream-broker'
+import { MessagePayloads } from './message-payload.schema'
+
+// ==============================================
+// EXAMPLE - BROKER CONFIGURATION
+// ==============================================
+export const brokerConfig = defineBroker({
+	mongoUri: process.env.MONGODB_BROKER_URI,
+	database: process.env.MONGODB_BROKER_DATABASE,
+	autoCreateTopics: true,
+	logLevel: 'INFO',
+	logContext: 'ChangeStreamBroker',
+})
+
+// ==============================================
+// EXAMPLE - CREATE PRODUCERS
+// ==============================================
+
+export const purchasesProducer = defineProducer({
+	topic: 'purchases.new-purchase',
+	partitions: 3,
+	retentionMs: 7 * 24 * 60 * 60 * 1000,
+	partitionStrategy: 'hash',
+})
+
+// ==============================================
+// EXAMPLE - CREATE CONSUMERS
+// ==============================================
+
+export const purchasesConsumer = defineConsumer({
+	groupId: 'classroom-service',
+	topic: 'purchases.new-purchase',
+	partitions: [0, 1, 2],
+	autoCommit: true,
+	autoCommitIntervalMs: 15000,
+	fromBeginning: false,
+	maxRetries: 3,
+	retryDelayMs: 1000,
+	enableOffsetMonitoring: false,
+	options: {
+		batchSize: 100,
+		maxAwaitTimeMS: 1000,
+		fullDocument: 'updateLookup',
+	},
+})
+
+// ==============================================
+// EXPORT TYPES
+// ==============================================
+export type MessageType = keyof MessagePayloads

@@ -1,5 +1,11 @@
 export { ChangeStreamBroker } from './broker/change-stream-broker'
 export { TopicManager } from './broker/topic-manager'
+export {
+	defineBroker,
+	defineConsumer,
+	defineProducer,
+	defineTopic,
+} from './cli/schema-helpers'
 export { ChangeStreamConsumer } from './consumer/consumer'
 export { ConsumerGroupManager } from './consumer/consumer-group'
 export { ChangeStreamProducer } from './producer/producer'
@@ -9,6 +15,7 @@ export type {
 	ConsumerConfig,
 	ConsumerRecord,
 	ErrorHandler,
+	Header,
 	Message,
 	MessageHandler,
 	MessageHandlerConfig,

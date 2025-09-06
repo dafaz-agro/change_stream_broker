@@ -24,7 +24,6 @@ export async function watchForChanges(): Promise<void> {
 			console.log(`📁 ${event}: ${path.split('/').pop()}`)
 			try {
 				await generateClient()
-				console.log('✅ Client regenerated successfully!')
 			} catch (error) {
 				console.error('❌ Regeneration failed:', error)
 			}

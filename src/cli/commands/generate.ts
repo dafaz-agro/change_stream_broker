@@ -178,7 +178,7 @@ export async function generateClient(): Promise<void> {
 		const packageDir = await getPackageDir()
 
 		const outputDir = path.join(packageDir, '..', 'client')
-		const outputPath = path.join(outputDir, '..', 'broker.client.ts')
+		const outputPath = path.join(outputDir, 'broker.client.ts')
 
 		// Verificar se os arquivos existem
 		if (!(await fs.pathExists(configPath))) {

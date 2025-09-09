@@ -1,10 +1,13 @@
 # Change Stream Broker
 
-## 🌐 Português
+Welcome 👋
 
-### O que é o Projeto
+Você tem uma Startup e quer desenvolver uma solução com microsserviços de forma prática, rápida e mais barata?
+Então, está no lugar certo:
 
-**Change Stream Broker** é um pacote Node.js que transforma MongoDB Change Streams em um sistema completo de message broker para arquiteturas de microsserviços. Ele fornece uma API similar ao Kafka/RabbitMQ, mas utilizando apenas MongoDB como backbone.
+**Change Stream Broker** é um pacote Node.js que transforma MongoDB Change Streams em um sistema completo de message broker para arquiteturas de microsserviços. Ele fornece uma API similar ao Kafka/RabbitMQ, mas utilizando apenas MongoDB como backbone, reduzindo drasticamente a complexidade e custo de infraestrutura.
+
+**Development CLI** torna a experiência de desenvolmento intuitiva, você mantém toda a configuração e schema do corpo de mensagens em um só lugar. Ao finalizar as alterações, com apenas um comando, você atualiza seu serviço de message broker.
 
 #### Principais Características
 

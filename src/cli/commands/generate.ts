@@ -11,6 +11,163 @@ import {
 	TopicConfig,
 } from '../../types'
 
+interface ProjectConfig {
+	compilerOptions: ts.CompilerOptions
+	moduleSystem: 'esm' | 'cjs'
+	projectRoot: string
+}
+
+function detectProjectConfig(
+	projectRoot: string = process.cwd(),
+): ProjectConfig {
+	// Ler tsconfig
+	const tsconfigPath = path.join(projectRoot, 'tsconfig.json')
+	let compilerOptions: ts.CompilerOptions = {}
+
+	if (fs.existsSync(tsconfigPath)) {
+		try {
+			const configFile = ts.readConfigFile(tsconfigPath, ts.sys.readFile)
+			if (configFile.config) {
+				const parsedConfig = ts.parseJsonConfigFileContent(
+					configFile.config,
+					ts.sys,
+					path.dirname(tsconfigPath),
+				)
+				compilerOptions = parsedConfig.options
+			}
+		} catch {
+			console.warn('⚠️  Could not parse tsconfig.json, using defaults')
+		}
+	}
+
+	// Detectar sistema de módulos
+	const packageJsonPath = path.join(projectRoot, 'package.json')
+	let moduleSystem: 'esm' | 'cjs' = 'cjs'
+
+	if (fs.existsSync(packageJsonPath)) {
+		try {
+			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+			if (packageJson.type === 'module') {
+				moduleSystem = 'esm'
+			}
+		} catch {
+			console.warn('⚠️  Could not parse package.json, using CommonJS')
+		}
+	}
+
+	// Configurações padrão com fallback inteligente
+	return {
+		compilerOptions: {
+			target: compilerOptions.target || ts.ScriptTarget.ES2020,
+			module:
+				moduleSystem === 'esm' ? ts.ModuleKind.ESNext : ts.ModuleKind.CommonJS,
+			esModuleInterop: compilerOptions.esModuleInterop ?? true,
+			allowSyntheticDefaultImports:
+				compilerOptions.allowSyntheticDefaultImports ?? true,
+			strict: compilerOptions.strict ?? true,
+			skipLibCheck: compilerOptions.skipLibCheck ?? true,
+			lib: compilerOptions.lib || ['ES2020'],
+			// Preservar outras opções relevantes
+			...compilerOptions,
+		},
+		moduleSystem,
+		projectRoot,
+	}
+}
+
+function generateJavaScriptClient(
+	tsContent: string,
+	configAnalysis: ConfigAnalysis,
+): string {
+	const projectConfig = detectProjectConfig()
+
+	// Configurações específicas para a geração do client
+	const generationOptions: ts.CompilerOptions = {
+		...projectConfig.compilerOptions,
+		declaration: false,
+		sourceMap: false,
+		inlineSourceMap: false,
+		outDir: '', // Não gerar arquivos de output
+		rootDir: '',
+	}
+
+	const result = ts.transpileModule(tsContent, {
+		compilerOptions: generationOptions,
+	})
+
+	let output = result.outputText
+
+	if (projectConfig.moduleSystem === 'esm') {
+		output = output
+			// Remover "use strict" (não necessário em ESM)
+			.replace(/^"use strict";\s*/gm, '')
+			// Remover exports do CommonJS
+			.replace(
+				/Object\.defineProperty\(exports, "__esModule", \{ value: true \}\);\s*/g,
+				'',
+			)
+			.replace(/exports\.\w+ = \w+;\s*/g, '')
+			.replace(/exports\.default = \w+;\s*/g, '')
+			// Converter module.exports para export default
+			.replace(/module\.exports = (\w+);/g, 'export default $1;')
+			// Converter exports.named para export named
+			.replace(/exports\.(\w+) = (\w+);/g, 'export const $1 = $2;')
+			// Remover require assignments
+			.replace(
+				/const (\w+) = require\(("[^"]+"|'[^']+')\);/g,
+				'import $1 from $2;',
+			)
+			// Converter __exportStar para export *
+			.replace(
+				/__exportStar\(require\(("[^"]+"|'[^']+')\), exports\);/g,
+				'export * from $1;',
+			)
+	}
+
+	// Adicionar export dos namespaces (compatível com ambos os sistemas)
+	if (configAnalysis.topics.length > 0) {
+		const topicsExport =
+			projectConfig.moduleSystem === 'esm'
+				? `export const topics = {${configAnalysis.topics.map((t) => t.name).join(', ')}};`
+				: `exports.topics = {${configAnalysis.topics.map((t) => t.name).join(', ')}};`
+		output += `\n\n// Topics namespace\n${topicsExport}`
+	}
+
+	if (configAnalysis.producers.length > 0) {
+		const producersExport =
+			projectConfig.moduleSystem === 'esm'
+				? `export const producers = {${configAnalysis.producers.map((p) => p.name).join(', ')}};`
+				: `exports.producers = {${configAnalysis.producers.map((p) => p.name).join(', ')}};`
+		output += `\n\n// Producers namespace\n${producersExport}`
+	}
+
+	if (configAnalysis.consumers.length > 0) {
+		const consumersExport =
+			projectConfig.moduleSystem === 'esm'
+				? `export const consumers = {${configAnalysis.consumers.map((c) => c.name).join(', ')}};`
+				: `exports.consumers = {${configAnalysis.consumers.map((c) => c.name).join(', ')}};`
+		output += `\n\n// Consumers namespace\n${consumersExport}`
+	}
+
+	if (!projectConfig.compilerOptions.target) {
+		projectConfig.compilerOptions.target = ts.ScriptTarget.ES2020
+	}
+
+	if (!projectConfig.compilerOptions.module) {
+		projectConfig.compilerOptions.module = ts.ModuleKind.CommonJS
+	}
+
+	// Adicionar header com informações de geração
+	const header = `// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from change-stream/config.ts and change-stream/message-payload.schema.ts
+// Target: ${ts.ScriptTarget[projectConfig.compilerOptions.target]}
+// Module: ${ts.ModuleKind[projectConfig.compilerOptions.module]}
+// Generated at: ${new Date().toISOString()}
+
+`
+	return header + output
+}
+
 interface SchemaAnalysis {
 	interfaces: Array<{ name: string; content: string }>
 	topicMappings: Array<{ topic: string; payloadType: string }>
@@ -23,8 +180,8 @@ interface ConfigAnalysis {
 	consumers: Array<{ name: string; config: ConsumerConfig }>
 }
 
-async function generateIndexFile(outputDir: string): Promise<void> {
-	const indexContent = `// Auto-generated index file
+function generateIndexFile(): string {
+	return `// Auto-generated index file
 export * from './broker.client'
 
 // Utility function to list available backups
@@ -56,15 +213,13 @@ export async function getBackupContent(backupName: string): Promise<string> {
   }
 }
 `
-	await fs.writeFile(path.join(outputDir, 'index.ts'), indexContent)
 }
 
 async function generatePackegeJson(outputDir: string): Promise<void> {
 	const packageJsonContent = `{
   "name": "@dafaz/change-stream-broker-client",
   "version": "1.0.0",
-  "main": "index.js",
-  "types": "index.d.ts"
+  "main": "index.js"
 }`
 
 	await fs.writeFile(path.join(outputDir, 'package.json'), packageJsonContent)
@@ -187,7 +342,7 @@ export async function generateClient(): Promise<void> {
 
 		const packageDir = await getPackageDir()
 
-		const outputDir = path.join(packageDir, 'client')
+		const outputDir = path.join(packageDir, '..', 'client')
 		const outputPath = path.join(outputDir, 'broker.client.ts')
 
 		// Verificar se os arquivos existem
@@ -214,15 +369,44 @@ export async function generateClient(): Promise<void> {
 		// Gerar cliente genérico
 		const clientContent = generateGenericClient(schemaAnalysis, configAnalysis)
 
+		const clientContentJs = generateJavaScriptClient(
+			clientContent,
+			configAnalysis,
+		)
+
+		const clientDtsContent = generateTypeDefinitions(clientContent)
+
 		await fs.ensureDir(outputDir)
-		await fs.writeFile(outputPath, clientContent)
+
+		// arquivo TypeScript gerado (referência)
+		// await fs.writeFile(outputPath, clientContent)
+
+		// arquivo JavaScript transpilado
+		await fs.writeFile(
+			path.join(outputDir, 'broker.client.js'),
+			clientContentJs,
+		)
+		await fs.writeFile(
+			path.join(outputDir, 'broker.client.d.ts'),
+			clientDtsContent,
+		)
+
+		// arquivo index.ts
+		const indexContent = generateIndexFile()
+		const indexContentJs = generateJavaScriptClient(
+			indexContent,
+			configAnalysis,
+		)
+		await fs.writeFile(path.join(outputDir, 'index.js'), indexContentJs)
+
+		// arquivo index.d.ts
+		const indexDtsContent = generateTypeDefinitions(indexContent)
+		await fs.writeFile(path.join(outputDir, 'index.d.ts'), indexDtsContent)
 
 		console.log('✅ Client generated successfully!')
 		console.log(
 			'📁 File created: node_modules/@dafaz/change-stream-broker/client/broker.client.ts',
 		)
-
-		await generateIndexFile(outputDir)
 
 		await generatePackegeJson(outputDir)
 
@@ -259,6 +443,18 @@ export async function generateClient(): Promise<void> {
 		}
 		process.exit(1)
 	}
+}
+
+function generateTypeDefinitions(content: string): string {
+	const projectConfig = detectProjectConfig()
+	const lib = projectConfig.compilerOptions.lib?.includes('ES2020')
+		? 'ES2020'
+		: 'ES2018'
+
+	return `
+/// <reference lib="${lib}" />
+
+`.concat(content)
 }
 
 function analyzeSchema(content: string): SchemaAnalysis {

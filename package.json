@@ -1,6 +1,6 @@
 {
   "name": "@dafaz/change-stream-broker",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A reusable MongoDB Change Stream manager",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,7 +16,7 @@
   ],
   "exports": {
     ".": "./dist/index.js",
-    "./client":"./dist/client/index.js"
+    "./client": "./dist/client/index.js"
   },
   "private": false,
   "scripts": {

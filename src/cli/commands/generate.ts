@@ -75,6 +75,21 @@ function detectProjectConfig(
 	}
 }
 
+function generateIndexJavaScript(content: string): string {
+	const projectConfig = detectProjectConfig()
+
+	const result = ts.transpileModule(content, {
+		compilerOptions: {
+			...projectConfig.compilerOptions,
+			declaration: false,
+			sourceMap: false,
+		},
+	})
+
+	// Retornar apenas o conteúdo transpilado, SEM adicionar namespaces
+	return result.outputText
+}
+
 function generateJavaScriptClient(
 	tsContent: string,
 	configAnalysis: ConfigAnalysis,
@@ -392,10 +407,7 @@ export async function generateClient(): Promise<void> {
 
 		// arquivo index.ts
 		const indexContent = generateIndexFile()
-		const indexContentJs = generateJavaScriptClient(
-			indexContent,
-			configAnalysis,
-		)
+		const indexContentJs = generateIndexJavaScript(indexContent)
 		await fs.writeFile(path.join(outputDir, 'index.js'), indexContentJs)
 
 		// arquivo index.d.ts

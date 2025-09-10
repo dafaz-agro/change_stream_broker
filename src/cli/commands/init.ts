@@ -40,53 +40,6 @@ export async function initConfiguration(
 			schemaTemplate,
 		)
 
-		// Criar arquivo README com instruções
-		const readmeContent = `# Change Stream Broker Configuration
-
-Esta pasta contém a configuração do Change Stream Broker para sua aplicação.
-
-## Arquivos:
-
-- \`config.ts\` - Configuração do broker, tópicos, producers e consumers
-- \`message-payload.schema.ts\` - Schemas TypeScript para as mensagens (OBRIGATÓRIO)
-
-## Como usar:
-
-1. Edite os schemas em \`message-payload.schema.ts\` conforme suas necessidades
-2. Configure os tópicos, producers e consumers em \`config.ts\`
-3. Execute \`npx csbroker generate\` para gerar o cliente
-4. Use o cliente em sua aplicação:
-
-\`\`\`typescript
-import { brokerClient } from './change-stream/client'
-import { UserCreatedPayload } from './change-stream/message-payload.schema'
-
-// Enviar mensagem
-await brokerClient.sendMessage('users.created', {
-  userId: '123',
-  email: 'user@example.com',
-  name: 'John Doe',
-  createdAt: new Date()
-} as UserCreatedPayload)
-
-// Consumir mensagens
-const consumer = await brokerClient.getConsumer('notification-service', 'users.created', [0, 1])
-await consumer.subscribe({
-  handler: async (record) => {
-    const userData = record.message.value as UserCreatedPayload
-    console.log('Novo usuário:', userData)
-  }
-})
-\`\`\`
-
-## Estrutura recomendada:
-
-- Defina interfaces TypeScript para cada tipo de mensagem
-- Mantenha o mapeamento topic→payload atualizado
-- Use grupos de consumers diferentes para cada serviço
-`
-		await fs.writeFile(path.join(changeStreamDir, 'README.md'), readmeContent)
-
 		console.log('✅ Change Stream Broker configuration initialized!')
 		console.log('📁 Files created:')
 		console.log('   - change-stream/config.ts')

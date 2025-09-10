@@ -25,7 +25,6 @@ interface ConfigAnalysis {
 
 async function generateIndexFile(outputDir: string): Promise<void> {
 	const indexContent = `// Auto-generated index file
-export { broker } from './broker.client'
 export * from './broker.client'
 
 // Utility function to list available backups
@@ -436,9 +435,9 @@ function generateGenericClient(
 	schema: SchemaAnalysis,
 	config: ConfigAnalysis,
 ): string {
-	const capitalize = (str: string): string => {
-		return str.charAt(0).toUpperCase() + str.slice(1)
-	}
+	// const capitalize = (str: string): string => {
+	// 	return str.charAt(0).toUpperCase() + str.slice(1)
+	// }
 
 	function formatValue(value: any): string {
 		if (typeof value === 'string') {
@@ -489,7 +488,7 @@ ${Object.entries(config.brokerConfig)
 // Producers Configuration
 ${config.producers
 	.map(
-		(producer) => `export const ${producer.name}: ProducerConfig = {
+		(producer) => `export const ${producer.name}Config: ProducerConfig = {
 ${Object.entries(producer.config)
 	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
 	.join(',\n')}
@@ -501,7 +500,7 @@ ${Object.entries(producer.config)
 // Consumers Configuration
 ${config.consumers
 	.map(
-		(consumer) => `export const ${consumer.name}: ConsumerConfig = {
+		(consumer) => `export const ${consumer.name}Config: ConsumerConfig = {
 ${Object.entries(consumer.config)
 	.filter(([_key, value]) => value !== undefined && value !== null)
 	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
@@ -511,274 +510,21 @@ ${Object.entries(consumer.config)
 	)
 	.join('')}
 `
-
-	// Seção de métodos para Producers
-	const producerHelpersSection =
-		config.producers.length > 0
-			? `
-// ==============================================
-// PRODUCER METHODS
-// ==============================================
-${config.producers
-	.map((producer) => {
-		const mapping = schema.topicMappings.find(
-			(m) => m.topic === producer.config.topic,
-		)
-		const payloadType = mapping ? mapping.payloadType : 'any'
-		const producerName = capitalize(producer.name)
-
-		return `
-/**
- * Send message to ${producer.config.topic}
- */
-export async function sendTo${producerName}(
-  message: ${payloadType},
-  options?: {
-    key?: string;
-    timestamp?: Date;
-    headers?: Header;
-  }
-): Promise<void> {
-  const producer = await broker.createProducer(${producer.name});
-
-  let messageToSend!: Message
-
-  if (options?.key !== undefined) messageToSend.key = options?.key;
-  if (options?.timestamp !== undefined) messageToSend.timestamp = options.timestamp;
-
-  if (options?.headers !== undefined && 
-      (options.headers?.eventType !== undefined || options.headers?.source !== undefined)) {
-        
-      messageToSend.headers = {};
-    
-    if (options.headers?.eventType !== undefined) {
-      messageToSend.headers.eventType = options.headers?.eventType;
-    }
-    
-    if (options.headers?.source !== undefined) {
-      messageToSend.headers.source = options.headers.source;
-    }
-  }
-
-  messageToSend.value = message;
-
-  await producer.send(messageToSend);
-}
-
-/**
- * Get ${producer.config.topic} producer instance
- */
-export async function get${producerName}(): Promise<ChangeStreamProducer> {
-  return await broker.createProducer(${producer.name});
-}
-`
-	})
-	.join('')}
-`
-			: ''
-
-	// Seção de métodos para Consumers
-	const consumerHelpersSection =
-		config.consumers.length > 0
-			? `
-// ==============================================
-// CONSUMER METHODS (with auto-binding)
-// ==============================================
-${config.consumers
-	.map((consumer) => {
-		const mapping = schema.topicMappings.find(
-			(m) => m.topic === consumer.config.topic,
-		)
-		const payloadType = mapping ? mapping.payloadType : 'any'
-		const consumerName = capitalize(consumer.name)
-
-		return `
-/**
- * Subscribe to ${consumer.config.topic} with automatic context binding
- */
-export async function subscribeTo${consumerName}(
-  context: any,
-  handlers: {
-    handler: (record: ConsumerRecord<${payloadType}>) => Promise<void>;
-    errorHandler?: (error: Error, record?: ConsumerRecord<${payloadType}>) => Promise<void>;
-  }
-): Promise<ChangeStreamConsumer> {
-  const consumer = await broker.createConsumer(${consumer.name});
-
-  const boundConfig: MessageHandlerConfig<${payloadType}> = {
-    handler: handlers.handler.bind(context),
-    errorHandler: handlers.errorHandler?.bind(context),
-    maxRetries: ${consumer.config.maxRetries || 3},
-    retryDelay: ${consumer.config.retryDelayMs || 1000},
-    autoCommit: ${consumer.config.autoCommit ?? true}
-  };
-
-  await consumer.subscribe(boundConfig);
-  return consumer;
-}
-
-/**
- * Get ${consumer.config.topic} consumer instance
- */
-export async function get${consumerName}(): Promise<ChangeStreamConsumer> {
-  return await broker.createConsumer(${consumer.name});
-}
-`
-	})
-	.join('')}
-`
-			: ''
-
-	// Métodos genéricos
-	const genericHelpersSection = `
-// ==============================================
-// GENERIC METHODS
-// ==============================================
-
-/**
- * Initialize broker and create all configured topics
- */
-export async function initializeBroker(): Promise<void> {
-  await broker.connect();
-  ${config.topics.map((topic) => `await broker.createTopic(${topic.name});`).join('\n  ')}
-}
-
-/**
- * Disconnect broker
- */
-export async function disconnectBroker(): Promise<void> {
-  await broker.disconnect();
-}
-
-// Generic producer method
-${
-	config.producers.length > 0
-		? `
-export async function sendMessage<T extends MessageType>(
-  topic: T,
-  message: MessagePayloads[T],
-  options?: {
-    key?: string;
-    timestamp?: Date;
-    headers?: Header;
-  }
-): Promise<void> {
-  const producerConfig = getProducerConfig(topic.toString());
-  const producer = await broker.createProducer(producerConfig);
-
- let messageToSend!: Message
-
-  if (options?.key !== undefined) messageToSend.key = options?.key;
-  if (options?.timestamp !== undefined) messageToSend.timestamp = options.timestamp;
-
-  if (options?.headers !== undefined && 
-      (options.headers?.eventType !== undefined || options.headers?.source !== undefined)) {
-        
-      messageToSend.headers = {};
-    
-    if (options.headers?.eventType !== undefined) {
-      messageToSend.headers.eventType = options.headers?.eventType;
-    }
-    
-    if (options.headers?.source !== undefined) {
-      messageToSend.headers.source = options.headers.source;
-    }
-  }
-
-  messageToSend.value = message;
-
-  await producer.send(messageToSend);
-}
-`
-		: ''
-}
-
-// Generic consumer method
-${
-	config.consumers.length > 0
-		? `
-export async function subscribeToTopic<T extends MessageType>(
-  topic: T,
-  groupId: string,
-  context: any,
-  handlers: {
-    handler: (record: ConsumerRecord<MessagePayloads[T]>) => Promise<void>;
-    errorHandler?: (error: Error, record?: ConsumerRecord<MessagePayloads[T]>) => Promise<void>;
-  }
-): Promise<ChangeStreamConsumer> {
-  const consumerConfig = getConsumerConfig(groupId, topic.toString());
-  const consumer = await broker.createConsumer(consumerConfig);
-
-  const boundConfig: MessageHandlerConfig<MessagePayloads[T]> = {
-    handler: handlers.handler.bind(context),
-    errorHandler: handlers.errorHandler?.bind(context),
-    maxRetries: consumerConfig.maxRetries || 3,
-    retryDelay: consumerConfig.retryDelayMs || 1000,
-    autoCommit: consumerConfig.autoCommit ?? true
-  };
-
-  await consumer.subscribe(boundConfig);
-  return consumer;
-}
-`
-		: ''
-}
-
-// Configuration helpers
-${
-	config.producers.length > 0
-		? `
-function getProducerConfig(topic: string): ProducerConfig {
-  ${config.producers
-		.map(
-			(producer) => `
-  if (topic === '${producer.config.topic}') {
-    return ${producer.name};
-  }`,
-		)
-		.join('')}
-
-  throw new Error(\`Producer not configured for topic: \${topic}\`);
-}
-`
-		: ''
-}
-
-${
-	config.consumers.length > 0
-		? `
-function getConsumerConfig(groupId: string, topic: string): ConsumerConfig {
-  ${config.consumers
-		.map(
-			(consumer) => `
-  if (groupId === '${consumer.config.groupId}' && topic === '${consumer.config.topic}') {
-    return ${consumer.name};
-  }`,
-		)
-		.join('')}
-
-  throw new Error(\`Consumer not configured for group: \${groupId} and topic: \${topic}\`);
-}
-`
-		: ''
-}
-`
-
 	return `// AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from change-stream/config.ts and change-stream/message-payload.schema.ts
 
 import {
 	BrokerConfig,
-	ChangeStreamBroker,
-	ChangeStreamConsumer,
-	ChangeStreamProducer,
 	ConsumerConfig,
-	ConsumerRecord,
-	Header,
 	Message,
-	MessageHandlerConfig,
 	ProducerConfig,
 } from '@dafaz/change-stream-broker'
+
+// ==============================================
+// Configs
+// ==============================================
+
+${configSection}
 
 // ==============================================
 // MESSAGE PAYLOAD INTERFACES (from schema)
@@ -793,26 +539,10 @@ ${schema.topicMappings.map((mapping) => `  '${mapping.topic}': ${mapping.payload
   [topic: string]: Record<string, any>;
 }
 
-${configSection}
-
-// ==============================================
-// BROKER INSTANCE
-// ==============================================
-export const broker = new ChangeStreamBroker(brokerConfig);
-
 // ==============================================
 // TYPE UTILITIES
 // ==============================================
 export type MessageType = keyof MessagePayloads;
-
-${producerHelpersSection}
-${consumerHelpersSection}
-${genericHelpersSection}
-
-// ==============================================
-// DEFAULT EXPORT
-// ==============================================
-export default broker;
 `
 }
 

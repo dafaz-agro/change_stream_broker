@@ -13,7 +13,7 @@ export const brokerConfig = defineBroker({
 	database: process.env.MONGODB_BROKER_DATABASE,
 	autoCreateTopics: true,
 	logLevel: 'INFO',
-	logContext: 'ChangeStreamBroker',
+	logContext: 'YOUR SERVICE NAME TO THE LOG CONTEXT',
 })
 
 // ==============================================

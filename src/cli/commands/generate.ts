@@ -124,28 +124,27 @@ function generateJavaScriptClient(
 			)
 	}
 
-	// Adicionar export dos namespaces (compatível com ambos os sistemas)
 	if (configAnalysis.topics.length > 0) {
 		const topicsExport =
 			projectConfig.moduleSystem === 'esm'
-				? `export const topics = {${configAnalysis.topics.map((t) => t.name).join(', ')}};`
-				: `exports.topics = {${configAnalysis.topics.map((t) => t.name).join(', ')}};`
+				? `export const topics = {${configAnalysis.topics.map((t) => `${t.name}: ${t.name}Config`).join(', ')}};`
+				: `exports.topics = {${configAnalysis.topics.map((t) => `${t.name}: exports.${t.name}Config`).join(', ')}};`
 		output += `\n\n// Topics namespace\n${topicsExport}`
 	}
 
 	if (configAnalysis.producers.length > 0) {
 		const producersExport =
 			projectConfig.moduleSystem === 'esm'
-				? `export const producers = {${configAnalysis.producers.map((p) => p.name).join(', ')}};`
-				: `exports.producers = {${configAnalysis.producers.map((p) => p.name).join(', ')}};`
+				? `export const producers = {${configAnalysis.producers.map((p) => `${p.name}: ${p.name}Config`).join(', ')}};`
+				: `exports.producers = {${configAnalysis.producers.map((p) => `${p.name}: exports.${p.name}Config`).join(', ')}};`
 		output += `\n\n// Producers namespace\n${producersExport}`
 	}
 
 	if (configAnalysis.consumers.length > 0) {
 		const consumersExport =
 			projectConfig.moduleSystem === 'esm'
-				? `export const consumers = {${configAnalysis.consumers.map((c) => c.name).join(', ')}};`
-				: `exports.consumers = {${configAnalysis.consumers.map((c) => c.name).join(', ')}};`
+				? `export const consumers = {${configAnalysis.consumers.map((c) => `${c.name}: ${c.name}Config`).join(', ')}};`
+				: `exports.consumers = {${configAnalysis.consumers.map((c) => `${c.name}: exports.${c.name}Config`).join(', ')}};`
 		output += `\n\n// Consumers namespace\n${consumersExport}`
 	}
 

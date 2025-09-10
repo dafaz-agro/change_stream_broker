@@ -16,7 +16,10 @@
   ],
   "exports": {
     ".": "./dist/index.js",
-    "./client": "./dist/client/index.js"
+    "./client": {
+      "import": "./client/index.js",
+      "require": "./client/index.js",
+      "types": "./client/index.d.ts"}
   },
   "private": false,
   "scripts": {

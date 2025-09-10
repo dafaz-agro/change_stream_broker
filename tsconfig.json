@@ -7,6 +7,9 @@
     "baseUrl": "./",
     "paths": {
       "@/*": ["./src/*"],
+      "@dafaz/change-stream-broker/client": [
+        "./client/index"
+      ],
     }, 
     
 

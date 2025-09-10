@@ -679,6 +679,11 @@ function generateGenericClient(
 // ==============================================
 
 // Broker Configuration
+try {
+	require('dotenv').config({ override: false })
+} catch {
+	console.warn('⚠️  dotenv not available, using process.env')
+}
 
 if (!process.env.MONGODB_BROKER_URI) {
 	throw new Error('Environment variable MONGODB_BROKER_URI is not set.')
@@ -697,7 +702,7 @@ ${Object.entries(config.brokerConfig)
 // Producers Configuration
 ${config.producers
 	.map(
-		(producer) => `export const ${producer.name}Config: ProducerConfig = {
+		(producer) => `export const ${producer.name}: ProducerConfig = {
 ${Object.entries(producer.config)
 	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)
 	.join(',\n')}
@@ -709,7 +714,7 @@ ${Object.entries(producer.config)
 // Consumers Configuration
 ${config.consumers
 	.map(
-		(consumer) => `export const ${consumer.name}Config: ConsumerConfig = {
+		(consumer) => `export const ${consumer.name}: ConsumerConfig = {
 ${Object.entries(consumer.config)
 	.filter(([_key, value]) => value !== undefined && value !== null)
 	.map(([key, value]) => `  ${key}: ${formatValue(value)}`)

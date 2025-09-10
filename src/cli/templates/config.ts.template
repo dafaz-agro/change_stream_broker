@@ -20,7 +20,7 @@ export const brokerConfig = defineBroker({
 // EXAMPLE - CREATE PRODUCERS
 // ==============================================
 
-export const purchasesProducer = defineProducer({
+export const purchasesProducerConfig = defineProducer({
 	topic: 'purchases.new-purchase',
 	partitions: 3,
 	retentionMs: 7 * 24 * 60 * 60 * 1000,
@@ -31,7 +31,7 @@ export const purchasesProducer = defineProducer({
 // EXAMPLE - CREATE CONSUMERS
 // ==============================================
 
-export const purchasesConsumer = defineConsumer({
+export const purchasesConsumerConfig = defineConsumer({
 	groupId: 'classroom-service',
 	topic: 'purchases.new-purchase',
 	partitions: [0, 1, 2],

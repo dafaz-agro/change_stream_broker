@@ -14,6 +14,10 @@
     "client",
     "README.md"
   ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./client":"./dist/client/index.js"
+  },
   "private": false,
   "scripts": {
     "clean": "rm -rf dist",

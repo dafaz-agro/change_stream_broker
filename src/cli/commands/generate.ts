@@ -59,6 +59,17 @@ export async function getBackupContent(backupName: string): Promise<string> {
 	await fs.writeFile(path.join(outputDir, 'index.ts'), indexContent)
 }
 
+async function generatePackegeJson(outputDir: string): Promise<void> {
+	const packageJsonContent = `{
+  "name": "@dafaz/change-stream-broker-client",
+  "version": "1.0.0",
+  "main": "index.js",
+  "types": "index.d.ts"
+}`
+
+	await fs.writeFile(path.join(outputDir, 'package.json'), packageJsonContent)
+}
+
 export async function getPackageDir(): Promise<string> {
 	try {
 		// Tentativa 1: Usando require.resolve (production)
@@ -212,6 +223,8 @@ export async function generateClient(): Promise<void> {
 		)
 
 		await generateIndexFile(outputDir)
+
+		await generatePackegeJson(outputDir)
 
 		await cleanupOldBackups(outputDir, 10) // Manter últimos 10 backups
 	} catch (error) {

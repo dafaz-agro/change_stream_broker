@@ -149,123 +149,592 @@ try {
 			watchForChanges().catch(console.error)
 		})
 
+	// program
+	// 	.command('backups')
+	// 	.description('List available client backups')
+	// 	.action(async () => {
+	// 		try {
+	// 			const packageDir = await getPackageDir()
+	// 			const clientDir = path.join(packageDir, '..', 'client')
+
+	// 			if (!(await fs.pathExists(clientDir))) {
+	// 				console.log('No backups available - client directory does not exist')
+	// 				return
+	// 			}
+
+	// 			const items = await fs.readdir(clientDir)
+	// 			const backupDirs = items.filter(
+	// 				(item) =>
+	// 					item.startsWith('backup_') &&
+	// 					fs.statSync(path.join(clientDir, item)).isDirectory(),
+	// 			)
+
+	// 			if (backupDirs.length === 0) {
+	// 				console.log('No backups available')
+	// 				return
+	// 			}
+
+	// 			console.log('📦 Available backups:')
+	// 			backupDirs
+	// 				.sort()
+	// 				.reverse()
+	// 				.forEach((backupDir, index) => {
+	// 					const timestamp = backupDir.replace('backup_', '')
+	// 					const date = parseBackupTimestamp(timestamp)
+
+	// 					console.log(`${index + 1}. ${backupDir} (${date.toLocaleString()})`)
+	// 				})
+	// 		} catch (error) {
+	// 			console.error('Error listing backups:', error)
+	// 		}
+	// 	})
+
+	// program
+	// 	.command('restore <backupName>')
+	// 	.description('Restore a specific backup')
+	// 	.action(async (backupName) => {
+	// 		try {
+	// 			const packageDir = await getPackageDir()
+	// 			const clientDir = path.join(packageDir, '..', 'client')
+	// 			const backupDir = path.join(clientDir, backupName)
+
+	// 			if (!(await fs.pathExists(backupDir))) {
+	// 				throw new Error(`Backup ${backupName} not found`)
+	// 			}
+
+	// 			// Ler arquivos do diretório de backup
+	// 			const backupFiles = await fs.readdir(backupDir)
+
+	// 			// Verificar se temos todos os arquivos necessários
+	// 			const requiredFiles = [
+	// 				'broker.client.js',
+	// 				'broker.client.d.ts',
+	// 				'index.js',
+	// 				'index.d.ts',
+	// 			]
+
+	// 			const hasRequiredFiles = requiredFiles.every((requiredFile) =>
+	// 				backupFiles.some((backupFile) => backupFile.startsWith(requiredFile)),
+	// 			)
+
+	// 			if (!hasRequiredFiles) {
+	// 				throw new Error(`Backup ${backupName} is incomplete or corrupted`)
+	// 			}
+
+	// 			// Fazer backup dos arquivos atuais primeiro
+	// 			const timestamp = generateTimestamp()
+	// 			const currentBackupDir = path.join(clientDir, `backup_${timestamp}`)
+	// 			await fs.ensureDir(currentBackupDir)
+
+	// 			// Copiar arquivos atuais para backup
+	// 			const currentFiles = (await fs.readdir(clientDir)).filter(
+	// 				(file) =>
+	// 					(file.endsWith('.js') || file.endsWith('.d.ts')) &&
+	// 					!file.startsWith('backup_'), // Não copiar pastas de backup
+	// 			)
+
+	// 			for (const file of currentFiles) {
+	// 				const sourcePath = path.join(clientDir, file)
+	// 				const backupPath = path.join(currentBackupDir, `${file}_${timestamp}`)
+	// 				await fs.copy(sourcePath, backupPath)
+	// 			}
+
+	// 			// Restaurar arquivos do backup
+	// 			for (const backupFile of backupFiles) {
+	// 				// Extrair o nome original do arquivo (remover o timestamp)
+	// 				const originalFileName = backupFile.split('_').slice(0, -2).join('_')
+
+	// 				const sourcePath = path.join(backupDir, backupFile)
+	// 				const targetPath = path.join(clientDir, originalFileName)
+
+	// 				await fs.copy(sourcePath, targetPath)
+	// 			}
+
+	// 			console.log('✅ Backup restored successfully!')
+	// 			console.log(
+	// 				`📁 Current files backed up to: ${path.basename(currentBackupDir)}`,
+	// 			)
+	// 		} catch (error) {
+	// 			console.error('Error restoring backup:', error)
+	// 		}
+	// 	})
+
 	program
 		.command('backups')
-		.description('List available client backups')
+		.description('List available backups')
 		.action(async () => {
 			try {
 				const packageDir = await getPackageDir()
 				const clientDir = path.join(packageDir, '..', 'client')
 
 				if (!(await fs.pathExists(clientDir))) {
-					console.log('No backups available - client directory does not exist')
+					console.log('No backups available')
 					return
 				}
 
 				const items = await fs.readdir(clientDir)
-				const backupDirs = items.filter(
-					(item) =>
-						item.startsWith('backup_') &&
-						fs.statSync(path.join(clientDir, item)).isDirectory(),
+
+				const potentialBackupDirs = items.filter((item) =>
+					item.startsWith('backup_'),
 				)
+
+				const backupDirs: string[] = []
+
+				for (const item of potentialBackupDirs) {
+					const itemPath = path.join(clientDir, item)
+					const stat = await fs.stat(itemPath)
+					if (stat.isDirectory()) {
+						backupDirs.push(item)
+					}
+				}
 
 				if (backupDirs.length === 0) {
 					console.log('No backups available')
 					return
 				}
 
-				console.log('📦 Available backups:')
-				backupDirs
-					.sort()
-					.reverse()
-					.forEach((backupDir, index) => {
-						const timestamp = backupDir.replace('backup_', '')
-						const date = parseBackupTimestamp(timestamp)
+				backupDirs.sort().reverse()
 
-						console.log(`${index + 1}. ${backupDir} (${date.toLocaleString()})`)
-					})
+				console.log('📦 Available backups:')
+				for (const backupDir of backupDirs) {
+					const timestamp = backupDir.replace('backup_', '')
+					try {
+						const date = parseBackupTimestamp(timestamp)
+						console.log(`   ${backupDir} (${date.toLocaleString()})`)
+					} catch {
+						// Se formato inválido, mostrar sem data
+						console.log(`   ${backupDir} (invalid timestamp: ${timestamp})`)
+					}
+				}
 			} catch (error) {
 				console.error('Error listing backups:', error)
 			}
 		})
 
 	program
+		.command('stage')
+		.description('Show current change-stream stage content')
+		.action(async () => {
+			try {
+				const packageDir = await getPackageDir()
+				const clientDir = path.join(packageDir, '..', 'client')
+				const stageDir = path.join(clientDir, 'change-stream_stage')
+
+				if (!(await fs.pathExists(stageDir))) {
+					console.log('No change-stream stage available')
+					return
+				}
+
+				const stageFiles = await fs.readdir(stageDir)
+				console.log('📁 change-stream_stage content:')
+				stageFiles.forEach((file) => {
+					console.log(`   - ${file}`)
+				})
+
+				// Mostrar conteúdo dos arquivos (opcional)
+				if (stageFiles.includes('config.ts')) {
+					const configContent = await fs.readFile(
+						path.join(stageDir, 'config.ts'),
+						'utf-8',
+					)
+					console.log('\n📋 config.ts preview:')
+					console.log(
+						configContent.split('\n').slice(0, 10).join('\n').concat('\n...'),
+					)
+				}
+			} catch (error) {
+				console.error('Error checking stage:', error)
+			}
+		})
+
+	program
 		.command('restore <backupName>')
-		.description('Restore a specific backup')
+		.description('Restore a specific backup (client files + update stage)')
 		.action(async (backupName) => {
 			try {
 				const packageDir = await getPackageDir()
 				const clientDir = path.join(packageDir, '..', 'client')
 				const backupDir = path.join(clientDir, backupName)
+				const changeStreamStageDir = path.join(clientDir, 'change-stream_stage')
 
 				if (!(await fs.pathExists(backupDir))) {
 					throw new Error(`Backup ${backupName} not found`)
 				}
 
-				// Verificar se é um diretório de backup válido
-				const filesWithTimestamp = await fs.readdir(backupDir)
+				// Verificar estrutura do backup
+				const backupClientDir = path.join(backupDir, 'client')
+				const backupChangeStreamDir = path.join(backupDir, 'change-stream')
 
-				const originalFiles = filesWithTimestamp.map(
-					(file) => file.split('_')[0],
-				)
-
-				const requiredFiles = [
-					'broker.client.js',
-					'broker.client.d.ts',
-					'index.js',
-					'index.d.ts',
-				]
-
-				const hasRequiredFiles = requiredFiles.every((file) =>
-					originalFiles.includes(file),
-				)
-
-				if (!hasRequiredFiles) {
-					throw new Error(`Backup ${backupName} is incomplete or corrupted`)
+				if (
+					!(await fs.pathExists(backupClientDir)) ||
+					!(await fs.pathExists(backupChangeStreamDir))
+				) {
+					throw new Error('Backup has invalid structure')
 				}
 
-				// Fazer backup dos arquivos atuais primeiro
+				// 1. Fazer backup do estado atual do CLIENT apenas
 				const timestamp = generateTimestamp()
-				const currentBackupDir = path.join(
-					clientDir,
-					`backup_before_restore_${timestamp}`,
-				)
+				const currentBackupDir = path.join(clientDir, `backup_${timestamp}`)
 				await fs.ensureDir(currentBackupDir)
 
-				// Copiar arquivos atuais para backup
-				const currentFiles = (await fs.readdir(clientDir)).filter(
-					(file) => file.endsWith('.js') || file.endsWith('.d.ts'),
+				// Backup apenas dos arquivos do client atual
+				if (await fs.pathExists(clientDir)) {
+					const currentClientFiles = (await fs.readdir(clientDir)).filter(
+						(file) =>
+							(file.endsWith('.js') || file.endsWith('.d.ts')) &&
+							!file.startsWith('backup_') &&
+							!file.startsWith('change-stream_'),
+					)
+
+					for (const file of currentClientFiles) {
+						const sourcePath = path.join(clientDir, file)
+						const backupPath = path.join(currentBackupDir, 'client', file)
+						await fs.copy(sourcePath, backupPath)
+					}
+
+					const currentChangeStreamStageFiles = (
+						await fs.readdir(changeStreamStageDir)
+					).filter((file) => file.endsWith('.ts') || file.endsWith('.json'))
+
+					for (const file of currentChangeStreamStageFiles) {
+						const sourcePath = path.join(changeStreamStageDir, file)
+						const backupPath = path.join(
+							currentBackupDir,
+							'change-stream',
+							file,
+						)
+						await fs.copy(sourcePath, backupPath)
+					}
+				}
+
+				console.log(
+					`📦 Current client state backed up to: ${path.basename(currentBackupDir)}`,
 				)
 
-				for (const file of currentFiles) {
-					const sourcePath = path.join(clientDir, file)
-					const backupPath = path.join(currentBackupDir, file)
-					await fs.copy(sourcePath, backupPath)
+				// 2. RESTAURAR ARQUIVOS DO CLIENT
+				const backupClientFiles = await fs.readdir(backupClientDir)
+				for (const file of backupClientFiles) {
+					const sourcePath = path.join(backupClientDir, file)
+					const targetPath = path.join(clientDir, file)
+
+					await fs.copy(sourcePath, targetPath)
+					console.log(`✅ Restored client: ${file}`)
 				}
 
-				// Restaurar arquivos do backup
-				for (const file of filesWithTimestamp) {
-					const sourcePath = path.join(backupDir, file)
-					const originalFileName = file.split('_')[0] // Remover timestamp
+				// 3. ATUALIZAR O STAGE com os arquivos do backup
+				const stageDir = path.join(clientDir, 'change-stream_stage')
+				await fs.ensureDir(stageDir)
+				await fs.emptyDir(stageDir)
 
-					if (!originalFileName) {
-						throw new Error(`Backup ${backupName} is incomplete or corrupted`)
-					}
-
-					const targetPath = path.join(clientDir, originalFileName)
-
-					if (file.endsWith('.js') || file.endsWith('.d.ts')) {
-						await fs.copy(sourcePath, targetPath)
-						console.log(`✅ Restored: ${file}`)
-					}
+				const backupChangeStreamFiles = await fs.readdir(backupChangeStreamDir)
+				for (const file of backupChangeStreamFiles) {
+					const sourcePath = path.join(backupChangeStreamDir, file)
+					const targetPath = path.join(stageDir, file)
+					await fs.copy(sourcePath, targetPath)
+					console.log(`✅ Updated stage with: ${file}`)
 				}
+
+				// 4. CRIAR ARQUIVO DE INSTRUÇÕES para o desenvolvedor
+				const instructions = `
+# 📋 INSTRUÇÕES DE RESTAURAÇÃO
+
+Backup restaurado: ${backupName}
+Data do restore: ${new Date().toLocaleString()}
+
+## ✅ O que foi feito:
+1. Arquivos do client restaurados em: node_modules/@dafaz/change-stream-broker/client/
+2. Stage atualizado com os arquivos change-stream do backup
+
+## 🚨 Próximos passos MANUAIS:
+
+### Opção 1: Usar arquivos do stage (RECOMENDADO)
+\`\`\`bash
+# Copiar arquivos do stage para seu change-stream
+cp -r node_modules/@dafaz/change-stream-broker/client/change-stream_stage/* change-stream/
+\`\`\`
+
+### Opção 2: Comparar e mesclar manualmente
+\`\`\`bash
+# Ver diferenças entre stage e seu change-stream atual
+diff -r node_modules/@dafaz/change-stream-broker/client/change-stream_stage/ change-stream/
+
+# Ou usar ferramenta visual de diff
+code --diff node_modules/@dafaz/change-stream-broker/client/change-stream_stage/config.ts change-stream/config.ts
+\`\`\`
+
+## 📊 Arquivos disponíveis no stage:
+${backupChangeStreamFiles.map((file) => `- ${file}`).join('\n')}
+
+💡 O backup do seu estado atual está em: ${path.basename(currentBackupDir)}
+					`
+
+				const instructionsPath = path.join(
+					clientDir,
+					`RESTORE_INSTRUCTIONS_${timestamp}.md`,
+				)
+				await fs.writeFile(instructionsPath, instructions)
 
 				console.log('✅ Backup restored successfully!')
+				console.log('📁 Client files restored')
+				console.log('📁 Stage updated with backup change-stream files')
 				console.log(
-					`📁 Current files backed up to: ${path.basename(currentBackupDir)}`,
+					'📋 Instructions saved to: ',
+					path.basename(instructionsPath),
 				)
+				console.log(
+					'\n🚨 IMPORTANTE: Você precisa manualmente copiar os arquivos do stage para seu change-stream/',
+				)
+				console.log('   Siga as instruções no arquivo de instruções.')
 			} catch (error) {
 				console.error('Error restoring backup:', error)
+			}
+		})
+	program
+		.command('apply-stage')
+		.description('Copy files from stage to change-stream directory')
+		.option('--force', 'Overwrite without confirmation')
+		.action(async (options) => {
+			try {
+				const packageDir = await getPackageDir()
+				const clientDir = path.join(packageDir, '..', 'client')
+				const stageDir = path.join(clientDir, 'change-stream_stage')
+				const changeStreamDir = path.join(process.cwd(), 'change-stream')
+
+				if (!(await fs.pathExists(stageDir))) {
+					throw new Error('No stage available. Run a restore first.')
+				}
+
+				if (!(await fs.pathExists(changeStreamDir))) {
+					throw new Error(
+						'Change-stream directory not found. Run "csbroker init" first.',
+					)
+				}
+
+				const stageFiles = await fs.readdir(stageDir)
+				const changeStreamFiles = await fs.readdir(changeStreamDir)
+
+				// Verificar diferenças
+				const diffFiles = []
+				for (const file of stageFiles) {
+					if (changeStreamFiles.includes(file)) {
+						const stageContent = await fs.readFile(
+							path.join(stageDir, file),
+							'utf-8',
+						)
+						const currentContent = await fs.readFile(
+							path.join(changeStreamDir, file),
+							'utf-8',
+						)
+
+						if (stageContent !== currentContent) {
+							diffFiles.push(file)
+						}
+					}
+				}
+
+				const newFiles = stageFiles.filter(
+					(file) => !changeStreamFiles.includes(file),
+				)
+
+				if (diffFiles.length === 0 && newFiles.length === 0) {
+					console.log(
+						'✅ No changes to apply - stage and change-stream are identical',
+					)
+					return
+				}
+
+				// Mostrar preview das mudanças
+				console.log('📋 Changes to be applied:')
+				if (diffFiles.length > 0) {
+					console.log('🔄 Modified files:')
+					diffFiles.forEach((file) => {
+						console.log(`   - ${file}`)
+					})
+				}
+				if (newFiles.length > 0) {
+					console.log('🆕 New files:')
+					newFiles.forEach((file) => {
+						console.log(`   - ${file}`)
+					})
+				}
+
+				// Confirmação (a menos que --force)
+				if (!options.force) {
+					const readline = require('node:readline').createInterface({
+						input: process.stdin,
+						output: process.stdout,
+					})
+
+					const answer: string = await new Promise((resolve) => {
+						readline.question(
+							'\n❓ Apply these changes to change-stream/? (y/N) ',
+							resolve,
+						)
+					})
+					readline.close()
+
+					if (answer.toLowerCase() !== 'y') {
+						console.log('❌ Operation cancelled')
+						return
+					}
+				}
+
+				// Aplicar mudanças
+				for (const file of stageFiles) {
+					const sourcePath = path.join(stageDir, file)
+					const targetPath = path.join(changeStreamDir, file)
+					await fs.copy(sourcePath, targetPath)
+					console.log(`✅ Applied: ${file}`)
+				}
+
+				console.log('✅ Stage applied successfully!')
+				console.log(
+					'💡 You may want to run: npx csbroker generate to ensure consistency',
+				)
+			} catch (error) {
+				console.error('Error applying stage:', error)
+			}
+		})
+
+	program
+		.command('diff')
+		.description('Show differences between current change-stream and stage')
+		.action(async () => {
+			try {
+				const currentDir = path.join(process.cwd(), 'change-stream')
+				const packageDir = await getPackageDir()
+				const clientDir = path.join(packageDir, '..', 'client')
+				const stageDir = path.join(clientDir, 'change-stream_stage')
+
+				if (!(await fs.pathExists(currentDir))) {
+					console.log('Current change-stream directory not found')
+					return
+				}
+
+				if (!(await fs.pathExists(stageDir))) {
+					console.log('No stage available')
+					return
+				}
+
+				const currentFiles = await fs.readdir(currentDir)
+				const stageFiles = await fs.readdir(stageDir)
+
+				console.log('🔍 Comparing change-stream with stage:')
+				console.log(`   Current: ${currentFiles.length} files`)
+				console.log(`   Stage: ${stageFiles.length} files`)
+
+				// Verificar diferenças nos arquivos principais
+				const importantFiles = ['config.ts', 'message-payload.schema.ts']
+
+				for (const file of importantFiles) {
+					const currentPath = path.join(currentDir, file)
+					const stagePath = path.join(stageDir, file)
+
+					const currentExists = await fs.pathExists(currentPath)
+					const stageExists = await fs.pathExists(stagePath)
+
+					if (currentExists && stageExists) {
+						const currentContent = await fs.readFile(currentPath, 'utf-8')
+						const stageContent = await fs.readFile(stagePath, 'utf-8')
+
+						if (currentContent === stageContent) {
+							console.log(`   ✅ ${file}: No changes`)
+						} else {
+							console.log(`   ⚠️  ${file}: Modified`)
+						}
+					} else if (currentExists && !stageExists) {
+						console.log(`   ❌ ${file}: Added in current`)
+					} else if (!currentExists && stageExists) {
+						console.log(`   ❌ ${file}: Removed from current`)
+					}
+				}
+			} catch (error) {
+				console.error('Error comparing changes:', error)
+			}
+		})
+	program
+		.command('compare-stage')
+		.description('Compare stage with current change-stream files')
+		.action(async () => {
+			try {
+				const packageDir = await getPackageDir()
+				const clientDir = path.join(packageDir, '..', 'client')
+				const stageDir = path.join(clientDir, 'change-stream_stage')
+				const changeStreamDir = path.join(process.cwd(), 'change-stream')
+
+				if (!(await fs.pathExists(stageDir))) {
+					throw new Error('No stage available')
+				}
+
+				if (!(await fs.pathExists(changeStreamDir))) {
+					throw new Error('Change-stream directory not found')
+				}
+
+				const stageFiles = await fs.readdir(stageDir)
+				const changeStreamFiles = await fs.readdir(changeStreamDir)
+
+				console.log('🔍 Comparing stage vs change-stream:')
+				console.log(`   Stage: ${stageFiles.length} files`)
+				console.log(`   Change-stream: ${changeStreamFiles.length} files`)
+
+				const onlyInStage = stageFiles.filter(
+					(file) => !changeStreamFiles.includes(file),
+				)
+				const onlyInChangeStream = changeStreamFiles.filter(
+					(file) => !stageFiles.includes(file),
+				)
+				const commonFiles = stageFiles.filter((file) =>
+					changeStreamFiles.includes(file),
+				)
+
+				if (onlyInStage.length > 0) {
+					console.log('\n📁 Only in stage:')
+					onlyInStage.forEach((file) => {
+						console.log(`   - ${file} (will be added)`)
+					})
+				}
+
+				if (onlyInChangeStream.length > 0) {
+					console.log('\n📁 Only in change-stream:')
+					onlyInChangeStream.forEach((file) => {
+						console.log(`   - ${file} (will be kept)`)
+					})
+				}
+
+				if (commonFiles.length > 0) {
+					console.log('\n📁 Common files (comparing content):')
+					let diffCount = 0
+					for (const file of commonFiles) {
+						const stageContent = await fs.readFile(
+							path.join(stageDir, file),
+							'utf-8',
+						)
+						const changeStreamContent = await fs.readFile(
+							path.join(changeStreamDir, file),
+							'utf-8',
+						)
+
+						if (stageContent !== changeStreamContent) {
+							console.log(`   - ${file} (DIFFERENT - will be overwritten)`)
+							diffCount++
+						} else {
+							console.log(`   - ${file} (identical)`)
+						}
+					}
+
+					if (diffCount > 0) {
+						console.log(
+							`\n⚠️  ${diffCount} files will be overwritten if you apply the stage`,
+						)
+					}
+				}
+
+				console.log('\n💡 Use "csbroker apply-stage" to apply these changes')
+				console.log(
+					'💡 Use "csbroker apply-stage --force" to apply without confirmation',
+				)
+			} catch (error) {
+				console.error('Error comparing:', error)
 			}
 		})
 

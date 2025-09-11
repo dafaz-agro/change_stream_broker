@@ -300,105 +300,349 @@ export function generateTimestamp(): string {
 	return format(new Date(), 'yyyyMMdd_HHmmss')
 }
 
-async function backupExistingClient(): Promise<void> {
-	const timestamp = generateTimestamp()
+// async function backupExistingClient(): Promise<void> {
+// 	const timestamp = generateTimestamp()
+// 	const packageDir = await getPackageDir()
+// 	const clientDir = path.join(packageDir, '..', 'client')
+
+// 	// Verificar se a pasta client existe e tem arquivos
+// 	if (!(await fs.pathExists(clientDir))) {
+// 		return // Não há nada para fazer backup
+// 	}
+
+// 	const files = (await fs.readdir(clientDir)).filter(
+// 		(file) =>
+// 			file.endsWith('.js') || file.endsWith('.d.ts') || file.endsWith('.ts'),
+// 	)
+
+// 	if (files.length === 0) {
+// 		return // Não há arquivos para backup
+// 	}
+
+// 	// Criar pasta de backup com timestamp
+// 	const backupDir = path.join(clientDir, `backup_${timestamp}`)
+// 	await fs.ensureDir(backupDir)
+
+// 	// Fazer backup de cada arquivo
+// 	for (const file of files) {
+// 		const sourcePath = path.join(clientDir, file)
+// 		const backupPath = path.join(backupDir, `${file}_${timestamp}`)
+
+// 		try {
+// 			await fs.copy(sourcePath, backupPath)
+// 		} catch (error) {
+// 			if (error instanceof Error) {
+// 				console.warn(`⚠️  Failed to backup ${file}:`, error.message)
+// 			}
+// 		}
+// 	}
+
+// 	console.log(`✅ Backup completed: ${path.basename(backupDir)}`)
+// }
+
+// async function backupExistingClient(): Promise<void> {
+// 	const timestamp = generateTimestamp()
+// 	const packageDir = await getPackageDir()
+// 	const clientDir = path.join(packageDir, '..', 'client')
+// 	const changeStreamDir = path.join(process.cwd(), 'change-stream')
+
+// 	// Verificar se há algo para fazer backup
+// 	const hasClientFiles = await fs.pathExists(clientDir)
+// 	const hasChangeStreamFiles = await fs.pathExists(changeStreamDir)
+
+// 	if (!hasClientFiles && !hasChangeStreamFiles) {
+// 		return // Não há nada para fazer backup
+// 	}
+
+// 	// Criar pasta de backup principal
+// 	const backupDir = path.join(clientDir, `backup_${timestamp}`)
+// 	await fs.ensureDir(backupDir)
+
+// 	// Criar subpastas
+// 	const backupClientDir = path.join(backupDir, 'client')
+// 	const backupChangeStreamDir = path.join(backupDir, 'change-stream')
+// 	await fs.ensureDir(backupClientDir)
+// 	await fs.ensureDir(backupChangeStreamDir)
+
+// 	let successCount = 0
+// 	let errorCount = 0
+
+// 	// Backup dos arquivos do client (gerados)
+// 	if (hasClientFiles) {
+// 		const clientFiles = (await fs.readdir(clientDir)).filter(
+// 			(file) =>
+// 				(file.endsWith('.js') || file.endsWith('.d.ts')) &&
+// 				!file.startsWith('backup_'),
+// 		)
+
+// 		for (const file of clientFiles) {
+// 			const sourcePath = path.join(clientDir, file)
+// 			const backupPath = path.join(backupClientDir, `${file}_${timestamp}`)
+
+// 			try {
+// 				await fs.copy(sourcePath, backupPath)
+// 				successCount++
+// 				console.log(`📦 Backed up client: ${file}`)
+// 			} catch (error) {
+// 				errorCount++
+// 				console.warn(
+// 					`⚠️  Failed to backup client file ${file}:`,
+// 					error instanceof Error ? error.message : String(error),
+// 				)
+// 			}
+// 		}
+// 	}
+
+// 	// Backup dos arquivos do change-stream (origem)
+// 	if (hasChangeStreamFiles) {
+// 		const changeStreamFiles = (await fs.readdir(changeStreamDir)).filter(
+// 			(file) =>
+// 				file.endsWith('.ts') &&
+// 				(file === 'config.ts' || file === 'message-payload.schema.ts'),
+// 		)
+
+// 		for (const file of changeStreamFiles) {
+// 			const sourcePath = path.join(changeStreamDir, file)
+// 			const backupPath = path.join(
+// 				backupChangeStreamDir,
+// 				`${file}_${timestamp}`,
+// 			)
+
+// 			try {
+// 				await fs.copy(sourcePath, backupPath)
+// 				successCount++
+// 				console.log(`📦 Backed up change-stream: ${file}`)
+// 			} catch (error) {
+// 				errorCount++
+// 				console.warn(
+// 					`⚠️  Failed to backup change-stream file ${file}:`,
+// 					error instanceof Error ? error.message : String(error),
+// 				)
+// 			}
+// 		}
+// 	}
+
+// 	if (successCount > 0) {
+// 		console.log(
+// 			`✅ Backup completed: ${path.basename(backupDir)} (${successCount} files)`,
+// 		)
+// 	}
+// 	if (errorCount > 0) {
+// 		console.warn(`⚠️  ${errorCount} files failed to backup`)
+// 	}
+// }
+
+async function backupExistingClient(timestamp: string): Promise<void> {
 	const packageDir = await getPackageDir()
 	const clientDir = path.join(packageDir, '..', 'client')
 
-	// Verificar se a pasta client existe e tem arquivos
+	// Verificar se a pasta client existe
 	if (!(await fs.pathExists(clientDir))) {
-		return // Não há nada para fazer backup
+		return
 	}
 
-	const files = (await fs.readdir(clientDir)).filter(
+	// Criar pasta de backup
+	const backupDir = path.join(clientDir, `backup_${timestamp}`)
+	const backupClientDir = path.join(backupDir, 'client')
+	const backupChangeStreamDir = path.join(backupDir, 'change-stream')
+
+	await fs.ensureDir(backupClientDir)
+	await fs.ensureDir(backupChangeStreamDir)
+
+	// 1. Backup dos arquivos do client (gerados)
+	const clientFiles = (await fs.readdir(clientDir)).filter(
 		(file) =>
-			file.endsWith('.js') || file.endsWith('.d.ts') || file.endsWith('.ts'),
+			(file.endsWith('.js') || file.endsWith('.d.ts')) &&
+			!file.startsWith('backup_') &&
+			!file.startsWith('change-stream_'),
 	)
 
-	if (files.length === 0) {
-		return // Não há arquivos para backup
+	for (const file of clientFiles) {
+		const sourcePath = path.join(clientDir, file)
+		const backupPath = path.join(backupClientDir, file)
+		await fs.copy(sourcePath, backupPath)
+		console.log(`📦 Backed up client: ${file}`)
 	}
 
-	// Criar pasta de backup com timestamp
-	const backupDir = path.join(clientDir, `backup_${timestamp}`)
-	await fs.ensureDir(backupDir)
-
-	// Fazer backup de cada arquivo
-	for (const file of files) {
-		const sourcePath = path.join(clientDir, file)
-		const backupPath = path.join(backupDir, `${file}_${timestamp}`)
-
-		try {
+	// 2. Backup dos arquivos do change-stream (do stage atual)
+	const stageDir = path.join(clientDir, 'change-stream_stage')
+	const stageFiles = await fs.readdir(stageDir)
+	if (await fs.pathExists(stageDir)) {
+		for (const file of stageFiles) {
+			const sourcePath = path.join(stageDir, file)
+			const backupPath = path.join(backupChangeStreamDir, file)
 			await fs.copy(sourcePath, backupPath)
-		} catch (error) {
-			if (error instanceof Error) {
-				console.warn(`⚠️  Failed to backup ${file}:`, error.message)
-			}
+			console.log(`📦 Backed up change-stream: ${file}`)
 		}
 	}
 
+	const metaData = {
+		timestamp: timestamp,
+		backedUpAt: new Date().toISOString(),
+		clientFiles: clientFiles,
+		changeStreamFiles: stageFiles,
+		sourceDirectory: process.cwd(),
+	}
+
+	await fs.writeFile(
+		path.join(backupDir, '.metadata.json'),
+		JSON.stringify(metaData, null, 2),
+	)
 	console.log(`✅ Backup completed: ${path.basename(backupDir)}`)
 }
 
-// Função para listar backups antigos (opcional: limpeza)
-async function listBackups(): Promise<string[]> {
+async function storeChangeStreamStage(timestamp: string): Promise<void> {
+	const configDir = path.join(process.cwd(), 'change-stream')
+	const configPath = path.join(configDir, 'config.ts')
+	const schemaPath = path.join(configDir, 'message-payload.schema.ts')
+
+	const packageDir = await getPackageDir()
+	const clientDir = path.join(packageDir, '..', 'client')
+	const stageDir = path.join(clientDir, 'change-stream_stage')
+
+	// Verificar se os arquivos de origem existem
+	if (
+		!(await fs.pathExists(configPath)) ||
+		!(await fs.pathExists(schemaPath))
+	) {
+		console.warn('⚠️  Change-stream files not found, skipping stage update')
+		return
+	}
+
+	// Criar/limpar diretório stage
+	await fs.ensureDir(stageDir)
+	await fs.emptyDir(stageDir)
+
+	// Copiar arquivos para o stage
+	await fs.copy(configPath, path.join(stageDir, 'config.ts'))
+	await fs.copy(schemaPath, path.join(stageDir, 'message-payload.schema.ts'))
+
+	console.log(`📦 Updated change-stream_stage with current files`)
+
+	// Registrar metadados do stage
+	const metaData = {
+		timestamp: timestamp,
+		generatedAt: new Date().toISOString(),
+		sourceFiles: ['config.ts', 'message-payload.schema.ts'],
+		sourceHash: {
+			config: await getFileHash(configPath),
+			schema: await getFileHash(schemaPath),
+		},
+	}
+	await fs.writeFile(
+		path.join(stageDir, '.metadata.json'),
+		JSON.stringify(metaData, null, 2),
+	)
+}
+
+// Função auxiliar para hash de arquivo (opcional)
+async function getFileHash(filePath: string): Promise<string> {
 	try {
-		const packageDir = await getPackageDir()
-		const clientDir = path.join(packageDir, '..', 'client')
-
-		if (!(await fs.pathExists(clientDir))) {
-			return []
-		}
-
-		const items = await fs.readdir(clientDir)
-		const backupDirs = items.filter(
-			(item) =>
-				item.startsWith('backup_') &&
-				fs.statSync(path.join(clientDir, item)).isDirectory(),
-		)
-
-		return backupDirs.sort()
-	} catch (error) {
-		if (error instanceof Error) {
-			console.warn('⚠️  Could not list backups:', error.message)
-		}
-		return []
+		const content = await fs.readFile(filePath, 'utf-8')
+		// Hash simples para detectar mudanças
+		return Buffer.from(content).toString('base64').slice(0, 16)
+	} catch {
+		return 'error'
 	}
 }
+
+// Função para listar backups antigos (opcional: limpeza)
+// async function listBackups(): Promise<string[]> {
+// 	try {
+// 		const packageDir = await getPackageDir()
+// 		const clientDir = path.join(packageDir, '..', 'client')
+
+// 		if (!(await fs.pathExists(clientDir))) {
+// 			return []
+// 		}
+
+// 		const items = await fs.readdir(clientDir)
+// 		const backupDirs = items.filter(
+// 			(item) =>
+// 				item.startsWith('backup_') &&
+// 				fs.statSync(path.join(clientDir, item)).isDirectory(),
+// 		)
+
+// 		return backupDirs.sort()
+// 	} catch (error) {
+// 		if (error instanceof Error) {
+// 			console.warn('⚠️  Could not list backups:', error.message)
+// 		}
+// 		return []
+// 	}
+// }
+
+// async function cleanupOldBackups(maxBackups: number = 10): Promise<void> {
+// 	try {
+// 		const packageDir = await getPackageDir()
+// 		const clientDir = path.join(packageDir, '..', 'client')
+// 		const backups = await listBackups()
+
+// 		if (backups.length <= maxBackups) {
+// 			return // Nada para limpar
+// 		}
+
+// 		const backupsToDelete = backups.slice(0, backups.length - maxBackups)
+
+// 		for (const backup of backupsToDelete) {
+// 			const backupPath = path.join(clientDir, backup)
+
+// 			try {
+// 				// Usar fs.remove para deletar recursivamente
+// 				await fs.remove(backupPath)
+// 				console.log(`🗑️  Deleted old backup: ${backup}`)
+// 			} catch (error) {
+// 				if (error instanceof Error) {
+// 					console.warn(`⚠️  Failed to delete backup ${backup}:`, error.message)
+// 				}
+// 			}
+// 		}
+
+// 		console.log(
+// 			`✅ Cleanup completed: ${backupsToDelete.length} backups removed`,
+// 		)
+// 	} catch (error) {
+// 		if (error instanceof Error) {
+// 			console.warn('⚠️  Could not cleanup old backups:', error.message)
+// 		}
+// 	}
+// }
 
 async function cleanupOldBackups(maxBackups: number = 10): Promise<void> {
 	try {
 		const packageDir = await getPackageDir()
 		const clientDir = path.join(packageDir, '..', 'client')
-		const backups = await listBackups()
 
-		if (backups.length <= maxBackups) {
-			return // Nada para limpar
+		if (!(await fs.pathExists(clientDir))) {
+			return
 		}
 
-		const backupsToDelete = backups.slice(0, backups.length - maxBackups)
+		const items = await fs.readdir(clientDir)
+		const backupDirs = items
+			.filter(
+				async (item) =>
+					item.startsWith('backup_') &&
+					(await fs.stat(path.join(clientDir, item))).isDirectory(),
+			)
+			.sort() // Mais antigo primeiro
+
+		if (backupDirs.length <= maxBackups) {
+			return
+		}
+
+		const backupsToDelete = backupDirs.slice(0, backupDirs.length - maxBackups)
 
 		for (const backup of backupsToDelete) {
 			const backupPath = path.join(clientDir, backup)
-
-			try {
-				// Usar fs.remove para deletar recursivamente
-				await fs.remove(backupPath)
-				console.log(`🗑️  Deleted old backup: ${backup}`)
-			} catch (error) {
-				if (error instanceof Error) {
-					console.warn(`⚠️  Failed to delete backup ${backup}:`, error.message)
-				}
-			}
+			await fs.remove(backupPath)
+			console.log(`🗑️  Deleted old backup: ${backup}`)
 		}
 
 		console.log(
 			`✅ Cleanup completed: ${backupsToDelete.length} backups removed`,
 		)
 	} catch (error) {
-		if (error instanceof Error) {
-			console.warn('⚠️  Could not cleanup old backups:', error.message)
-		}
+		console.warn('Could not cleanup old backups:', error)
 	}
 }
 
@@ -412,7 +656,7 @@ export async function generateClient(): Promise<void> {
 		const schemaPath = path.join(configDir, 'message-payload.schema.ts')
 
 		const packageDir = await getPackageDir()
-		const outputDir = path.join(packageDir, '..', 'client')
+		const clientDir = path.join(packageDir, '..', 'client')
 
 		// Verificar se os arquivos existem
 		if (!(await fs.pathExists(configPath))) {
@@ -424,10 +668,23 @@ export async function generateClient(): Promise<void> {
 			)
 		}
 
-		// 1. Fazer backup do arquivo atual se existir
-		await backupExistingClient()
+		const timestamp = generateTimestamp()
 
-		// Analisar o schema para extrair interfaces e mapeamentos
+		// 1. SE EXISTIR stage anterior, FAZER BACKUP
+		// 1. VERIFICAR SE DEVE CRIAR BACKUP
+		const shouldBackup = await shouldCreateBackup()
+
+		if (shouldBackup) {
+			await backupExistingClient(timestamp)
+			console.log('📊 Backup created for previous state')
+		} else {
+			console.log('📊 No backup needed for this generation')
+		}
+
+		// 2. ATUALIZAR STAGE com change-stream atual
+		await storeChangeStreamStage(timestamp)
+
+		// 3. Analisar o schema para extrair interfaces e mapeamentos
 		const schemaContent = await fs.readFile(schemaPath, 'utf-8')
 		const schemaAnalysis = analyzeSchema(schemaContent)
 
@@ -437,41 +694,38 @@ export async function generateClient(): Promise<void> {
 
 		// Gerar cliente genérico
 		const clientContent = generateGenericClient(schemaAnalysis, configAnalysis)
-
 		const clientContentJs = generateJavaScriptClient(
 			clientContent,
 			configAnalysis,
 		)
-
 		const clientDtsContent = generateTypeDefinitions(clientContent)
 
-		await fs.ensureDir(outputDir)
+		await fs.ensureDir(clientDir)
 
 		// arquivo TypeScript gerado (referência)
 		// await fs.writeFile(outputPath, clientContent)
 
 		// arquivo JavaScript transpilado
 		await fs.writeFile(
-			path.join(outputDir, 'broker.client.js'),
+			path.join(clientDir, 'broker.client.js'),
 			clientContentJs,
 		)
 		await fs.writeFile(
-			path.join(outputDir, 'broker.client.d.ts'),
+			path.join(clientDir, 'broker.client.d.ts'),
 			clientDtsContent,
 		)
 
 		// arquivo index.ts
 		const indexContent = generateIndexFile()
 		const indexContentJs = generateIndexJavaScript(indexContent)
-		await fs.writeFile(path.join(outputDir, 'index.js'), indexContentJs)
-
-		// arquivo index.d.ts
 		const indexDtsContent = generateTypeDefinitions(indexContent)
-		await fs.writeFile(path.join(outputDir, 'index.d.ts'), indexDtsContent)
+
+		await fs.writeFile(path.join(clientDir, 'index.js'), indexContentJs)
+		await fs.writeFile(path.join(clientDir, 'index.d.ts'), indexDtsContent)
 
 		console.log('✅ Client generated successfully!')
 
-		await generatePackegeJson(outputDir)
+		await generatePackegeJson(clientDir)
 
 		await cleanupOldBackups(10) // Manter últimos 10 backups
 	} catch (error) {
@@ -506,6 +760,68 @@ export async function generateClient(): Promise<void> {
 		}
 		process.exit(1)
 	}
+}
+
+async function shouldCreateBackup(): Promise<boolean> {
+	const packageDir = await getPackageDir()
+	const clientDir = path.join(packageDir, '..', 'client')
+	const stageDir = path.join(clientDir, 'change-stream_stage')
+
+	// Verificar se o stage existe
+	if (!(await fs.pathExists(stageDir))) {
+		console.log('📝 No existing stage found - first generation')
+		return false
+	}
+
+	// Verificar se o stage tem arquivos válidos
+	const stageFiles = await fs.readdir(stageDir)
+	const hasConfigFiles =
+		stageFiles.includes('config.ts') &&
+		stageFiles.includes('message-payload.schema.ts') &&
+		stageFiles.length >= 2
+
+	if (!hasConfigFiles) {
+		console.log('📝 Stage exists but is incomplete - skipping backup')
+		return false
+	}
+
+	// Verificar se os arquivos do stage são diferentes dos atuais
+	const currentConfigPath = path.join(
+		process.cwd(),
+		'change-stream',
+		'config.ts',
+	)
+	const currentSchemaPath = path.join(
+		process.cwd(),
+		'change-stream',
+		'message-payload.schema.ts',
+	)
+	const stageConfigPath = path.join(stageDir, 'config.ts')
+	const stageSchemaPath = path.join(stageDir, 'message-payload.schema.ts')
+
+	if (
+		(await fs.pathExists(currentConfigPath)) &&
+		(await fs.pathExists(stageConfigPath))
+	) {
+		const currentConfig = await fs.readFile(currentConfigPath, 'utf-8')
+		const stageConfig = await fs.readFile(stageConfigPath, 'utf-8')
+
+		const currentSchema = await fs
+			.readFile(currentSchemaPath, 'utf-8')
+			.catch(() => '')
+		const stageSchema = await fs
+			.readFile(stageSchemaPath, 'utf-8')
+			.catch(() => '')
+
+		// Se não houver mudanças, não criar backup
+		if (currentConfig === stageConfig && currentSchema === stageSchema) {
+			console.log('📝 No changes detected - skipping backup')
+			return false
+		}
+	}
+
+	console.log('📦 Changes detected - backup will be created')
+	return true
 }
 
 function generateTypeDefinitions(content: string): string {

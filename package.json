@@ -1,6 +1,6 @@
 {
   "name": "@dafaz/change-stream-broker",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "A reusable MongoDB Change Stream manager",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

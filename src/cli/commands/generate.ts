@@ -330,7 +330,6 @@ async function backupExistingClient(): Promise<void> {
 
 		try {
 			await fs.copy(sourcePath, backupPath)
-			console.log(`📦 Backed up: ${file}`)
 		} catch (error) {
 			if (error instanceof Error) {
 				console.warn(`⚠️  Failed to backup ${file}:`, error.message)
@@ -471,9 +470,6 @@ export async function generateClient(): Promise<void> {
 		await fs.writeFile(path.join(outputDir, 'index.d.ts'), indexDtsContent)
 
 		console.log('✅ Client generated successfully!')
-		console.log(
-			'📁 File created: node_modules/@dafaz/change-stream-broker/client/broker.client.js',
-		)
 
 		await generatePackegeJson(outputDir)
 

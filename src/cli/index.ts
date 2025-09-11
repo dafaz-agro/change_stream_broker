@@ -12,9 +12,27 @@ import { initConfiguration } from './commands/init'
 import { watchForChanges } from './commands/watch'
 
 export interface ClientBackup {
-	filename: string
+	name: string
+	path: string
 	timestamp: Date
 	formattedDate: string
+	fileCount: number
+}
+
+function parseBackupTimestamp(timestamp: string): Date {
+	// Formato esperado: YYYYMMDD_HHmmss
+	if (timestamp.length !== 15 || timestamp.charAt(8) !== '_') {
+		throw new Error(`Invalid timestamp format: ${timestamp}`)
+	}
+
+	return new Date(
+		parseInt(timestamp.slice(0, 4), 10), // year
+		parseInt(timestamp.slice(4, 6), 10) - 1, // month (0-indexed)
+		parseInt(timestamp.slice(6, 8), 10), // day
+		parseInt(timestamp.slice(9, 11), 10), // hour
+		parseInt(timestamp.slice(11, 13), 10), // minute
+		parseInt(timestamp.slice(13, 15), 10), // second
+	)
 }
 
 try {
@@ -136,23 +154,36 @@ try {
 		.description('List available client backups')
 		.action(async () => {
 			try {
-				const {
-					listClientBackups,
-				} = require('@dafaz/change-stream-broker/generated')
-				const backups: ClientBackup[] = await listClientBackups()
+				const packageDir = await getPackageDir()
+				const clientDir = path.join(packageDir, '..', 'client')
 
-				if (backups.length === 0) {
+				if (!(await fs.pathExists(clientDir))) {
+					console.log('No backups available - client directory does not exist')
+					return
+				}
+
+				const items = await fs.readdir(clientDir)
+				const backupDirs = items.filter(
+					(item) =>
+						item.startsWith('backup_') &&
+						fs.statSync(path.join(clientDir, item)).isDirectory(),
+				)
+
+				if (backupDirs.length === 0) {
 					console.log('No backups available')
 					return
 				}
 
 				console.log('📦 Available backups:')
-				backups.forEach((backup, index) => {
-					const dateStr = backup.filename
-						.replace('broker.client.ts_', '')
-						.replace('_', ' ')
-					console.log(`${index + 1}. ${backup.filename} (${dateStr})`)
-				})
+				backupDirs
+					.sort()
+					.reverse()
+					.forEach((backupDir, index) => {
+						const timestamp = backupDir.replace('backup_', '')
+						const date = parseBackupTimestamp(timestamp)
+
+						console.log(`${index + 1}. ${backupDir} (${date.toLocaleString()})`)
+					})
 			} catch (error) {
 				console.error('Error listing backups:', error)
 			}
@@ -164,24 +195,62 @@ try {
 		.action(async (backupName) => {
 			try {
 				const packageDir = await getPackageDir()
-				const generatedDir = path.join(packageDir, 'generated')
-				const backupPath = path.join(generatedDir, backupName)
-				const currentPath = path.join(generatedDir, 'broker.client.ts')
+				const clientDir = path.join(packageDir, '..', 'client')
+				const backupDir = path.join(clientDir, backupName)
 
-				if (!(await fs.pathExists(backupPath))) {
+				if (!(await fs.pathExists(backupDir))) {
 					throw new Error(`Backup ${backupName} not found`)
 				}
 
-				// Fazer backup do atual primeiro
-				const timestamp = generateTimestamp()
-				await fs.copy(currentPath, `${currentPath}_${timestamp}`)
+				// Verificar se é um diretório de backup válido
+				const files = await fs.readdir(backupDir)
+				const requiredFiles = [
+					'broker.client.js',
+					'broker.client.d.ts',
+					'index.js',
+					'index.d.ts',
+				]
+				const hasRequiredFiles = requiredFiles.every((file) =>
+					files.includes(file),
+				)
 
-				// Restaurar backup
-				await fs.copy(backupPath, currentPath)
+				if (!hasRequiredFiles) {
+					throw new Error(`Backup ${backupName} is incomplete or corrupted`)
+				}
+
+				// Fazer backup dos arquivos atuais primeiro
+				const timestamp = generateTimestamp()
+				const currentBackupDir = path.join(
+					clientDir,
+					`backup_before_restore_${timestamp}`,
+				)
+				await fs.ensureDir(currentBackupDir)
+
+				// Copiar arquivos atuais para backup
+				const currentFiles = (await fs.readdir(clientDir)).filter(
+					(file) => file.endsWith('.js') || file.endsWith('.d.ts'),
+				)
+
+				for (const file of currentFiles) {
+					const sourcePath = path.join(clientDir, file)
+					const backupPath = path.join(currentBackupDir, file)
+					await fs.copy(sourcePath, backupPath)
+				}
+
+				// Restaurar arquivos do backup
+				for (const file of files) {
+					const sourcePath = path.join(backupDir, file)
+					const targetPath = path.join(clientDir, file)
+
+					if (file.endsWith('.js') || file.endsWith('.d.ts')) {
+						await fs.copy(sourcePath, targetPath)
+						console.log(`✅ Restored: ${file}`)
+					}
+				}
 
 				console.log('✅ Backup restored successfully!')
 				console.log(
-					`📁 Current version backed up as: broker.client.ts_${timestamp}`,
+					`📁 Current files backed up to: ${path.basename(currentBackupDir)}`,
 				)
 			} catch (error) {
 				console.error('Error restoring backup:', error)
@@ -194,14 +263,19 @@ try {
 }
 
 function handleError(error: any): void {
-	if (
-		error.message.includes('production') ||
-		error.message.includes('disabled')
-	) {
-		console.error('❌ Security violation detected')
-		process.exit(1)
+	if (error instanceof Error) {
+		if (
+			error.message.includes('production') ||
+			error.message.includes('disabled')
+		) {
+			console.error('❌ Security violation detected')
+			process.exit(1)
+		} else {
+			console.error('❌ Error:', error.message)
+			process.exit(1)
+		}
 	} else {
-		console.error('❌ Error:', error.message)
+		console.error('❌ Unknown error:', error)
 		process.exit(1)
 	}
 }

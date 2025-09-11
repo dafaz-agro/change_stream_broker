@@ -203,15 +203,21 @@ try {
 				}
 
 				// Verificar se é um diretório de backup válido
-				const files = await fs.readdir(backupDir)
+				const filesWithTimestamp = await fs.readdir(backupDir)
+
+				const originalFiles = filesWithTimestamp.map(
+					(file) => file.split('_')[0],
+				)
+
 				const requiredFiles = [
 					'broker.client.js',
 					'broker.client.d.ts',
 					'index.js',
 					'index.d.ts',
 				]
+
 				const hasRequiredFiles = requiredFiles.every((file) =>
-					files.includes(file),
+					originalFiles.includes(file),
 				)
 
 				if (!hasRequiredFiles) {
@@ -238,9 +244,15 @@ try {
 				}
 
 				// Restaurar arquivos do backup
-				for (const file of files) {
+				for (const file of filesWithTimestamp) {
 					const sourcePath = path.join(backupDir, file)
-					const targetPath = path.join(clientDir, file)
+					const originalFileName = file.split('_')[0] // Remover timestamp
+
+					if (!originalFileName) {
+						throw new Error(`Backup ${backupName} is incomplete or corrupted`)
+					}
+
+					const targetPath = path.join(clientDir, originalFileName)
 
 					if (file.endsWith('.js') || file.endsWith('.d.ts')) {
 						await fs.copy(sourcePath, targetPath)

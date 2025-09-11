@@ -326,7 +326,7 @@ async function backupExistingClient(): Promise<void> {
 	// Fazer backup de cada arquivo
 	for (const file of files) {
 		const sourcePath = path.join(clientDir, file)
-		const backupPath = path.join(backupDir, file)
+		const backupPath = path.join(backupDir, `${file}_${timestamp}`)
 
 		try {
 			await fs.copy(sourcePath, backupPath)

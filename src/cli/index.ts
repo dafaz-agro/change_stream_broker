@@ -405,6 +405,19 @@ try {
 						)
 						await fs.copy(sourcePath, backupPath)
 					}
+
+					const metaData = {
+						timestamp: timestamp,
+						backedUpAt: new Date().toISOString(),
+						clientFiles: currentClientFiles,
+						changeStreamFiles: currentChangeStreamStageFiles,
+						sourceDirectory: process.cwd(),
+					}
+
+					await fs.writeFile(
+						path.join(currentBackupDir, 'client', '.metadata.json'),
+						JSON.stringify(metaData, null, 2),
+					)
 				}
 
 				console.log(

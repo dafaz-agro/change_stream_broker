@@ -485,7 +485,7 @@ async function backupExistingClient(timestamp: string): Promise<void> {
 	}
 
 	await fs.writeFile(
-		path.join(backupDir, '.metadata.json'),
+		path.join(backupDir, 'client', '.metadata.json'),
 		JSON.stringify(metaData, null, 2),
 	)
 	console.log(`✅ Backup completed: ${path.basename(backupDir)}`)

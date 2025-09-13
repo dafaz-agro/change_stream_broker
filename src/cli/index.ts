@@ -499,57 +499,18 @@ try {
 					console.log(`✅ Updated stage with: ${file}`)
 				}
 
-				// 4. CRIAR ARQUIVO DE INSTRUÇÕES para o desenvolvedor
-				const instructions = `
-# 📋 INSTRUÇÕES DE RESTAURAÇÃO
-
-Backup restaurado: ${backupName}
-Data do restore: ${new Date().toLocaleString()}
-
-## ✅ O que foi feito:
-1. Arquivos do client restaurados em: node_modules/@dafaz/change-stream-broker/client/
-2. Stage atualizado com os arquivos change-stream do backup
-
-## 🚨 Próximos passos MANUAIS:
-
-### Opção 1: Usar arquivos do stage (RECOMENDADO)
-\`\`\`bash
-# Copiar arquivos do stage para seu change-stream
-cp -r node_modules/@dafaz/change-stream-broker/client/change-stream_stage/* change-stream/
-\`\`\`
-
-### Opção 2: Comparar e mesclar manualmente
-\`\`\`bash
-# Ver diferenças entre stage e seu change-stream atual
-diff -r node_modules/@dafaz/change-stream-broker/client/change-stream_stage/ change-stream/
-
-# Ou usar ferramenta visual de diff
-code --diff node_modules/@dafaz/change-stream-broker/client/change-stream_stage/config.ts change-stream/config.ts
-\`\`\`
-
-## 📊 Arquivos disponíveis no stage:
-${backupChangeStreamFiles.map((file) => `- ${file}`).join('\n')}
-
-💡 O backup do seu estado atual está em: ${path.basename(currentBackupDir)}
-					`
-
-				const instructionsPath = path.join(
-					clientDir,
-					`RESTORE_INSTRUCTIONS_${timestamp}.md`,
-				)
-				await fs.writeFile(instructionsPath, instructions)
-
-				console.log('✅ Backup restored successfully!')
-				console.log('📁 Client files restored')
-				console.log('📁 Stage updated with backup change-stream files')
 				console.log(
-					'📋 Instructions saved to: ',
-					path.basename(instructionsPath),
+					'\n🚨 IMPORTANTE: Você precisa verificar os arquivos de stage para seu change-stream:\n',
 				)
 				console.log(
-					'\n🚨 IMPORTANTE: Você precisa manualmente copiar os arquivos do stage para seu change-stream/',
+					'  1. Utilize o comando (npx csbroker diff) para fazer a verificação.\n',
 				)
-				console.log('   Siga as instruções no arquivo de instruções.')
+				console.log(
+					'  2. Utilize o comando (npx csbroker stage) para ler os arquivos de stage do change_stream/.\n',
+				)
+				console.log(
+					'  3. Utilize o comando (npx csbroker apply-stage) para aplicar as modificações seletivamente, e atualizar o seu change-stream/ conforme sua necessidade.\n',
+				)
 			} catch (error) {
 				console.error('Error restoring backup:', error)
 			}

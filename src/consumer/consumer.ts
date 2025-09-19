@@ -635,45 +635,6 @@ export class ChangeStreamConsumer {
 		return anyCommitted
 	}
 
-	// async commitOffsets(): Promise<boolean> {
-	// 	if (!this.lastProcessedOffset) {
-	// 		this.logger.info('No offset to commit')
-	// 		return false
-	// 	}
-
-	// 	if (
-	// 		this.lastCommittedOffset &&
-	// 		this.isSameOffset(this.lastCommittedOffset, this.lastProcessedOffset)
-	// 	) {
-	// 		this.logger.info('Offset already committed, skipping')
-	// 		this.hasUncommittedChanges = false
-	// 		return false
-	// 	}
-
-	// 	try {
-	// 		const committed = await this.offsetStorage.commitOffsetIfChanged({
-	// 			topic: this.config.topic,
-	// 			partition: 0,
-	// 			groupId: this.config.groupId,
-	// 			offset: this.lastProcessedOffset,
-	// 			timestamp: new Date(),
-	// 		})
-
-	// 		if (committed) {
-	// 			this.hasUncommittedChanges = false
-	// 			this.lastCommittedOffset = this.lastProcessedOffset
-	// 			this.logger.info('Offset committed successfully', {
-	// 				offset: this.lastProcessedOffset,
-	// 			})
-	// 			return true
-	// 		}
-	// 		return false
-	// 	} catch (error) {
-	// 		this.logger.error('Commit failed:', error)
-	// 		return false
-	// 	}
-	// }
-
 	async disconnect(): Promise<void> {
 		// Commit final se houver mudanças não commitadas
 		if (this.hasUncommittedChangesOnPartition()) {

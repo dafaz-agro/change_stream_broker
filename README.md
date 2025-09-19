@@ -2,14 +2,120 @@
 
 Welcome 👋
 
-Você tem uma Startup e quer desenvolver uma solução com microsserviços de forma prática, rápida e mais barata?
-Então, está no lugar certo:
+**Change Stream Broker** é um pacote Node.js que transforma o MongoDB Change Streams em um sistema completo de message broker para arquiteturas de microsserviços. Ele fornece uma API similar ao Kafka/RabbitMQ, mas utilizando apenas MongoDB como backbone, reduzindo drasticamente a complexidade de implementação e administração, bem como os custos de infraestrutura e processamento.
 
-**Change Stream Broker** é um pacote Node.js que transforma MongoDB Change Streams em um sistema completo de message broker para arquiteturas de microsserviços. Ele fornece uma API similar ao Kafka/RabbitMQ, mas utilizando apenas MongoDB como backbone, reduzindo drasticamente a complexidade e custo de infraestrutura.
+**Development CLI** torna a experiência de desenvolmento intuitiva, mantém a configuração do message broker e o schema do payload das mensagens no mesmo local do código. As alterações feitas são publicadas via linha de comando.
 
-**Development CLI** torna a experiência de desenvolmento intuitiva, você mantém toda a configuração e schema do corpo de mensagens em um só lugar. Ao finalizar as alterações, com apenas um comando, você atualiza seu serviço de message broker.
+## Instalação
 
-#### Principais Características
+```bash
+npm install @dafaz/change-stream-broker
+```
+
+## Inicialização
+
+### 1. Crie os arquivos de Configuração e de Schema do broker:
+
+```bash
+npx csbroker init
+```
+
+### 2. Edite os arquivos:
+
+Encontre a pasta (change-stream) na raíz do seu projeto:
+
+```text
+[root]/
+└── change-stream/
+        ├── config.ts
+        └── message-payload.schema.ts/
+```
+
+No arquivo de configurações você terá um serviço de message broker pré-configurado, para você customizar
+conforme sua necessidade, e ainda, um exemplo de configuração de um producer e de um consumer.
+
+No arquivo de schema de mensagens, você terá um exemplo de payload de messagem pré-configurado. Edite o arquivo conforme a necessidade do seu microsserviço. 
+
+É importante observar que tanto o arquivo de configuração quanto o de schema, devem permanecer na pasta change-stream gerada na raíz de seu projeto.
+
+
+### 3. Após a edição, gere os arquivos internos a serem utilizados pelo broker:
+
+```bash
+npx csbroker generate
+```
+
+Observação: Sempre que editar os arquivos de configuração e de schema, chame o generate para enviar as alterações para o broker.
+
+### 4. Variáveis de ambiente:
+
+No arquivo .env da sua aplicação, crie as seguintes variáveis de conexão com sua instância do MongoDB:
+
+```text
+
+# MongoDB
+MONGODB_BROKER_URI="mongodb://root:docker@127.0.0.1:27017/?replicaSet=rs0&authSource=admin"
+MONGODB_BROKER_DATABASE="purchase-events"
+
+```
+
+### Demais comandos da CLI
+
+#### Modo Watch:
+
+Utilize o modo watch, em desenvolvimento, para auto-gerar os arquivos do broker, sempre que for realizada uma alteração nos arquivos de configuração ou schema:
+
+```bash
+nox csbroker watch
+```
+
+
+#### Backups:
+
+A cada generate, os arquivos antigos são colocados em um backup, e caso seja necessário, podem ser recuperados. Para visualizar a lista de backups, utilize o comando:
+
+```bash
+npx csbroker backups
+```
+
+#### Restore:
+
+Para recuperar um backup, utilize o comando:
+
+```bash
+npx csbroker restore [backup_name]
+```
+
+**Atenção** 
+Sempre que fizer um restore, você precisa verificar os arquivos de configuração e schema específicos desse restore. Esses arquivos ficam guardados em um Stage. Os comandos à seguir, podem ser utilizados para você comparar os seus arquivos de configuração e schema atuais, com os arquivos em stage. Faça a atualização dos seus arquivos de configuração e schema conforme houver necessidade.
+
+#### Stage:
+
+Os arquivos de geração utilizados pelo broker, ficam em stage, e podem ser verificados através do comando abaixo:
+
+```bash
+npx csbroker stage
+```
+
+#### Apply Stage:
+
+Após o restore, e a verificação dos arquivos em stage, utilize o comando a seguir para atualizar seus arquivos de configuração e schema em desenvolvimento:
+
+```bash
+npx csbroker apply-stage
+```
+
+
+#### Diferenças entre Stages:
+
+Caso você queira uma forma mais eficiente de verificar as diferenças entre o estágio atual do broker e seus arquivos de configuração e schema, utilize o comando:
+
+```bash
+npx csbroker diff
+```
+  
+
+## Principais Características
 
 - 🎯 **API Familiar**: Interface similar a brokers populares (Kafka-like).
 - 📦 **Zero Dependências Extras**: Usa apenas o driver oficial do MongoDB.
@@ -19,827 +125,30 @@ Então, está no lugar certo:
 - ⚡ **Alta Disponibilidade**: Reconexão automática e lógica de retries integrada.
 - 🔧 **Extensível**: Arquitetura modular para customizações.
 
-#### Casos de Uso Ideais
+## Casos de Uso Ideais
 
 - Microsserviços que já utilizam MongoDB.
 - Sistemas que precisam de comunicação assíncrona entre serviços.
 - Migração de sistemas legados para arquitetura orientada a eventos.
 - Ambientes onde Kafka ou RabbitMQ seriam excessivos (overkill).
 
-### Como Instalar
 
-#### Pré-requisitos
+## Pré-requisitos
 
 - Node.js 16+  
-- MongoDB 5.0+ com replica set habilitado  **(veja exemplo no final)**
+- MongoDB 5.0+ com replica set habilitado
 - TypeScript **(recomendado)**
 
-#### Instalação
 
-```bash
-npm install @dafaz/change-stream-broker
-```
+### Configuração do MongoDB
 
-#### Configuração do MongoDB
+- Para usar **Change Stream Broker** no seu projeto, é necessário configurar o MongoDB em replica set.
+- Ou ainda, utilize o **MongoDB Atlas Online**, que já vem com replica set por padrão habilitado.
 
-Para usar **Change Streams**, é necessário configurar um replica set:
-
-- Utilize uma instância do **MongoDB Atlas Online**, que já vem com replica set habilitado.
-- Ou configure um replica set localmente utilizando um container Docker. Consulte a documentação oficial do MongoDB para mais detalhes.
-
-### Estrutura de Arquivos do Projeto
-
-#### Principais Classes e Interfaces
-
-```text
-src/
-├── index.ts                          # Ponto de entrada principal
-├── broker/
-│   ├── change-stream-broker.ts       # Classe principal do broker
-│   ├── topic-manager.ts              # Gerenciador de tópicos
-│   └── types.ts                      # Interfaces principais
-├── consumer/
-│   ├── consumer.ts                   # Implementação do consumer
-│   ├── consumer.interface.ts         # Interface do consumer
-│   ├── consumer-group.ts             # Gerenciador de consumer groups
-│   └── message-handler.interface.ts  # Interface de handlers
-├── producer/
-│   └── producer.ts                   # Implementação do producer
-└── storage/
-    ├── offset-storage.ts             # Interface de storage
-    ├── mongo-offset-storage.ts       # Storage de offsets no MongoDB
-    └── file-offset-storage.ts        # Storage de offsets em arquivo
-```
-
-### Principais Interfaces
-
-#### IChangeStreamConsumer
-
-- **Definição**:  
-```typescript
-  interface IChangeStreamConsumer {
-  getConsumerId(): string;
-  getGroupId(): string;
-  getTopic(): string;
-  connect(): Promise<void>;
-  subscribe<T = any>(config: MessageHandlerConfig<T>): Promise<void>;
-  disconnect(): Promise<void>;
-  commitOffsets(): Promise<void>;
-}
-```
-A interface `IChangeStreamConsumer` define o contrato para a implementação de um consumidor de mensagens no **Change Stream Broker**. Ela garante que qualquer classe que implemente essa interface possua os métodos necessários para gerenciar a conexão, assinatura e processamento de mensagens. Abaixo estão os métodos definidos:
-
-- **`getConsumerId(): string`**  
-  Retorna o identificador único do consumidor. Esse ID é usado para distinguir consumidores individuais dentro de um grupo.
-
-- **`getGroupId(): string`**  
-  Retorna o identificador do grupo de consumidores ao qual este consumidor pertence. Consumidores no mesmo grupo compartilham a carga de processamento de mensagens.
-
-- **`getTopic(): string`**  
-  Retorna o nome do tópico ao qual o consumidor está associado. O tópico é a fonte das mensagens consumidas.
-
-- **`connect(): Promise<void>`**  
-  Estabelece a conexão do consumidor com o broker. Este método deve ser chamado antes de qualquer operação de assinatura ou consumo.
-
-- **`subscribe<T = any>(config: MessageHandlerConfig<T>): Promise<void>`**  
-  Permite que o consumidor se inscreva em um tópico com uma configuração específica de manipulador de mensagens (`MessageHandlerConfig`). O tipo genérico `<T>` define o formato esperado das mensagens.
-
-- **`disconnect(): Promise<void>`**  
-  Desconecta o consumidor do broker, encerrando a assinatura e liberando os recursos associados.
-
-- **`commitOffsets(): Promise<void>`**  
-  Confirma os offsets das mensagens processadas, garantindo que elas não sejam reprocessadas em caso de falhas ou reinicializações.
-
-Essa interface é essencial para garantir que os consumidores sigam um padrão consistente, facilitando a implementação e manutenção do sistema.
-
-
-#### IChangeStreamProducer
-
-```typescript
-export interface IChangeStreamProducer {
-  send(messages: Message | Message[]): Promise<void>
-  disconnect(): Promise<void>
-  isConnected: boolean
-}
-```
-Métodos:
-
-- **`send(messages: Message | Message[]): Promise<void>`**  
-Envia uma ou mais mensagens para o tópico
-
-- **`disconnect(): Promise<void>`**  
-Desconecta o producer
-
-- **`isConnected(): boolean`**  
-Verifica se está conectado
-
-
-#### MessageHandler
-
-A interface `MessageHandler` define o contrato para a função responsável por processar mensagens consumidas de um tópico. Essa função é utilizada pelos consumidores para lidar com cada mensagem recebida. Abaixo está a explicação detalhada:
-
-- **Definição**:  
-  ```typescript
-  interface MessageHandler<T = unknown> {
-    (record: ConsumerRecord & { message: { value: T } }): Promise<void>;
-  }
-  ```
-Essa interface é essencial para definir como as mensagens devem ser processadas pelos consumidores, permitindo que cada mensagem seja tratada de forma personalizada e assíncrona.
-
-Tipo Genérico:
-- **`<T = unknown>`**  
-Permite que o manipulador seja configurado para processar mensagens de diferentes formatos, garantindo flexibilidade e segurança de tipo.
-
-Parâmetros:
-- **`record`**  
-  Um objeto que combina as propriedades de ConsumerRecord com uma mensagem (message) contendo um valor (value) do tipo genérico T.
-
-- **`ConsumerRecord`**  
-  Representa os metadados da mensagem consumida, como o tópico, partição e offset.
-
- - **`message.value`**  
-  Contém o valor da mensagem, que é do tipo genérico T.
-
-
-#### ConsumerRecord
-
-A interface `ConsumerRecord` representa os metadados de uma mensagem consumida de um tópico. Esses metadados fornecem informações importantes sobre a origem e o contexto da mensagem, além de dados necessários para gerenciar o consumo. Abaixo está a explicação detalhada:
-
-- **Definição**:  
-  ```typescript
-  interface ConsumerRecord {
-    topic: string;
-    partition: number;
-    message: Message;
-    offset: ResumeToken;
-    timestamp: Date;
-  }
-  ```
-Essa interface é fundamental para fornecer o contexto completo de uma mensagem consumida, permitindo que os consumidores processem as mensagens de forma eficiente e segura.
-
-Propriedades:
-- **`topic: string`**  
-O nome do tópico de onde a mensagem foi consumida.
-
-- **`partition: number`**  
-O número da partição do tópico de onde a mensagem foi lida. Partições são usadas para distribuir mensagens e balancear a carga entre consumidores.
-
-- **`message: Message`**  
-O conteúdo da mensagem consumida. A interface Message contém os dados principais que serão processados.
-
-- **`offset: ResumeToken`**  
-O token de resume do MongoDB, usado para rastrear a posição da mensagem no stream. Esse token é essencial para garantir o processamento exatamente uma vez (exactly-once) e para retomar o consumo em caso de falhas.
-
-- **`timestamp: Date`**  
-A data e hora em que a mensagem foi produzida ou consumida. Esse valor pode ser usado para fins de auditoria ou ordenação.
-
-
-#### OffsetStorage
-
-A interface `OffsetStorage` define o contrato para o gerenciamento de offsets no **Change Stream Broker**. Ela é responsável por armazenar e recuperar os offsets das mensagens consumidas, garantindo que o sistema possa retomar o consumo de onde parou em caso de falhas ou reinicializações. Abaixo está a explicação detalhada:
-
-- **Definição**:  
-  ```typescript
-  interface OffsetStorage {
-    commitOffset(commit: OffsetCommit): Promise<void>;
-    getOffset(groupId: string, topic: string, partition: number): Promise<ResumeToken | null>;
-  }
-  ```
-Essa interface é essencial para implementar diferentes estratégias de armazenamento de offsets, como armazenamento em MongoDB, arquivos ou outros sistemas, garantindo flexibilidade e confiabilidade no gerenciamento do consumo de mensagens.
-
-Método:
-- **`commitOffset(commit: OffsetCommit): Promise<void>`**  
-Armazena o offset mais recente para um grupo de consumidores, tópico e partição específicos.
-
-Parâmetro:
-- **`commit: OffsetCommit`**  
-Um objeto contendo as informações necessárias para registrar o offset, como o grupo de consumidores, tópico, partição e o token de resume.
-
-Método:
-- **`getOffset(groupId: string, topic: string, partition: number): Promise<ResumeToken | null>`**  
-Recupera o offset armazenado para um grupo de consumidores, tópico e partição específicos.
-
-Parâmetros:
-- **`groupId: string`**  
-O identificador do grupo de consumidores.
-
-- **`topic: string`**  
-O nome do tópico.
-
-- **`partition: number`**  
-O número da partição.
-
-Retorno:
-- **`Promise<ResumeToken | null>`**  
-Retorno assíncrono do token de resume armazenado ou null se nenhum offset estiver disponível.
-
-
-### Fluxo de Dados
-
-```text
-[Producer Service]          [MongoDB]               [Consumer Service]
-     |                         |                         |
-     | 1. Insere documento     |                         |
-     |-----------------------> |                         |
-     |                         |                         |
-     |                         | 2. Change Stream detecta|
-     |                         |    mudança              |
-     |                         |-----------------------> |
-     |                         |                         |
-     |                         | 3. Processa mensagem    |
-     |                         |    e commit offset      |
-     |                         |<----------------------- |
-```
-
-### Configurações de Performance
-
-O exemplo abaixo demonstra como configurar o **Change Stream Broker** com parâmetros otimizados para garantir alta performance e resiliência:
-
-```typescript
-// Exemplo de configuração otimizada
-const broker = new ChangeStreamBroker({
-  mongoUri: 'mongodb://localhost:27017', // URI de conexão com o MongoDB
-  database: 'my-events',                // Nome do banco de dados utilizado
-  maxRetries: 10,                       // Número máximo de tentativas de reconexão em caso de falhas
-  retryDelayMs: 1000,                   // Intervalo (em milissegundos) entre as tentativas de reconexão
-  heartbeatIntervalMs: 30000,           // Intervalo (em milissegundos) para envio de heartbeats
-  autoCreateTopics: false               // Criação automática de tópicos desabilitada para evitar erro
-});
-```
-Essa configuração é ideal para cenários onde a resiliência e a estabilidade são cruciais, garantindo que o sistema continue funcionando mesmo em situações de falhas temporárias.
-
-Parâmetros:  
-- **`mongoUri`**  
-Define a URI de conexão com o MongoDB. No exemplo, está configurado para um MongoDB local na porta padrão (27017).
-
-- **`database`**  
-Especifica o banco de dados onde os eventos serão armazenados e gerenciados.
-
-- **`maxRetries`**  
-Configura o número máximo de tentativas de reconexão em caso de falhas na comunicação com o MongoDB.
-
-- **`retryDelayMs`**  
-Define o tempo de espera (em milissegundos) entre cada tentativa de reconexão.
-
-- **`heartbeatIntervalMs`**  
-Determina o intervalo de envio de heartbeats para monitorar a conexão com o MongoDB.
-
-- **`autoCreateTopics`**  
-Quando habilitado (true), permite que o broker crie tópicos automaticamente, caso eles não existam.
-
-
-### Exemplo de Microsserviços com NestJS e Change Stream Broker
-
-#### Estrutura do Projeto
-
-```text
-microservices-example/
-├── purchase-service/
-│   ├── src/
-│   │   ├── purchases/
-│   │   │   ├── purchases.module.ts
-│   │   │   ├── purchases.service.ts
-│   │   │   ├── purchases.controller.ts
-│   │   │   └── schemas/
-│   │   │       └── purchase.schema.ts
-│   │   ├── change-stream/
-│   │   │   └── purchase.publisher.ts
-│   │   ├── app.module.ts
-│   │   └── main.ts
-│   ├── package.json
-│   └── Dockerfile
-├── classroom-service/
-│   ├── src/
-│   │   ├── enrollments/
-│   │   │   ├── enrollments.module.ts
-│   │   │   ├── enrollments.service.ts
-│   │   │   ├── enrollments.controller.ts
-│   │   │   └── schemas/
-│   │   │       └── enrollment.schema.ts
-│   │   ├── change-stream/
-│   │   │   └── enrollment.consumer.ts
-│   │   ├── app.module.ts
-│   │   └── main.ts
-│   ├── package.json
-│   └── Dockerfile
-├── docker-compose.yml
-└── package.json
-```
-
-### Serviço de Purchase (Producer)
-
-
-#### package.json
-
-**purchase-service/ package.json**  
-
-```json
-{
-  "name": "purchase-service",
-  "version": "1.0.0",
-  "dependencies": {
-    "@nestjs/common": "^9.0.0",
-    "@nestjs/core": "^9.0.0",
-    "@nestjs/mongoose": "^9.0.0",
-    "@nestjs/platform-express": "^9.0.0",
-    "mongoose": "^6.0.0",
-    "@dafaz/change-stream-broker": "^1.0.0"
-  }
-}
-```
-
-#### PurchaseSchema
-
-**purchase-service/ src/ purchases/ schemas/ purchase.schema.ts**  
-
-```typescript
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
-
-export type PurchaseDocument = Purchase & Document;
-
-@Schema({ timestamps: true })
-export class Purchase {
-  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Customer' })
-  customerId: string;
-
-  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Product' })
-  productId: string;
-
-  @Prop({ required: true })
-  productType: string;
-
-  @Prop({ required: true })
-  amount: number;
-
-  @Prop({ default: 'pending' })
-  status: string;
-
-  @Prop()
-  transactionId: string;
-}
-
-export const PurchaseSchema = SchemaFactory.createForClass(Purchase);
-```
-
-#### PurchasePublisher
-
-**purchase-service/ src/ change-stream/ purchase.publisher.ts**  
-
-```typescript
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { 
-  ChangeStreamBroker, 
-  ProducerConfig,
-  IChangeStreamProducer  // ← Importar a interface
-} from '@dafaz/change-stream-broker';
-
-export interface PurchaseMessage {
-  purchaseId: string;
-  customerId: string;
-  productId: string;
-  productType: string;
-  amount: number;
-  status: string;
-  createdAt: Date;
-}
-
-@Injectable()
-export class PurchasePublisher implements OnModuleInit, OnModuleDestroy {
-  private broker: ChangeStreamBroker;
-  private producer: IChangeStreamProducer;  // ← Usando interface
-
-  constructor() {
-    this.broker = new ChangeStreamBroker({
-      mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017',
-      database: 'purchase-events',
-      autoCreateTopics: true
-    });
-  }
-
-  async onModuleInit() {
-    await this.broker.connect();
-    
-    const producerConfig: ProducerConfig = {
-      topic: 'purchases'
-    };
-    
-    this.producer = await this.broker.createProducer(producerConfig);
-    console.log('Purchase publisher initialized');
-  }
-
-  async publishPurchaseCreated(purchase: PurchaseMessage) {
-    await this.producer.send({
-      key: purchase.purchaseId,
-      value: purchase,
-      headers: {
-        'event-type': 'purchase.created',
-        'source': 'purchase-service'
-      }
-    });
-    
-    console.log(`Purchase event published: ${purchase.purchaseId}`);
-  }
-
-  async publishPurchaseStatusChanged(purchaseId: string, status: string) {
-    await this.producer.send({
-      key: purchaseId,
-      value: { purchaseId, status, updatedAt: new Date() },
-      headers: {
-        'event-type': 'purchase.status.changed',
-        'source': 'purchase-service'
-      }
-    });
-  }
-
-  async onModuleDestroy() {
-    await this.broker.disconnect();
-  }
-}
-```
-
-#### PurchasesService
-
-**purchase-service/ src/ purchases/ purchases.service.ts**  
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Purchase, PurchaseDocument } from './schemas/purchase.schema';
-import { PurchasePublisher } from '../change-stream/purchase.publisher';
-
-@Injectable()
-export class PurchasesService {
-  constructor(
-    @InjectModel(Purchase.name) private purchaseModel: Model<PurchaseDocument>,
-    private purchasePublisher: PurchasePublisher
-  ) {}
-
-  async createPurchase(createPurchaseDto: any) {
-    const purchase = new this.purchaseModel(createPurchaseDto);
-    const savedPurchase = await purchase.save();
-
-    // Publicar evento de purchase created
-    await this.purchasePublisher.publishPurchaseCreated({
-      purchaseId: savedPurchase._id.toString(),
-      customerId: savedPurchase.customerId,
-      productId: savedPurchase.productId,
-      productType: savedPurchase.productType,
-      amount: savedPurchase.amount,
-      status: savedPurchase.status,
-      createdAt: savedPurchase.createdAt
-    });
-
-    return savedPurchase;
-  }
-
-  async updatePurchaseStatus(purchaseId: string, status: string) {
-    const updatedPurchase = await this.purchaseModel.findByIdAndUpdate(
-      purchaseId,
-      { status },
-      { new: true }
-    );
-
-    if (updatedPurchase) {
-      await this.purchasePublisher.publishPurchaseStatusChanged(
-        purchaseId,
-        status
-      );
-    }
-
-    return updatedPurchase;
-  }
-
-  async findByCustomerId(customerId: string) {
-    return this.purchaseModel.find({ customerId });
-  }
-}
-```
-
-#### PurchasesController
-
-**purchase-service/ src/ purchases/ purchases.controller.ts**  
-
-```typescript
-import { Controller, Post, Body, Param, Patch, Get } from '@nestjs/common';
-import { PurchasesService } from './purchases.service';
-
-@Controller('purchases')
-export class PurchasesController {
-  constructor(private readonly purchasesService: PurchasesService) {}
-
-  @Post()
-  async create(@Body() createPurchaseDto: any) {
-    return this.purchasesService.createPurchase(createPurchaseDto);
-  }
-
-  @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return this.purchasesService.updatePurchaseStatus(id, status);
-  }
-
-  @Get('customer/:customerId')
-  async findByCustomer(@Param('customerId') customerId: string) {
-    return this.purchasesService.findByCustomerId(customerId);
-  }
-}
-```
-
-#### AppModule
-
-**purchase-service/ src/ app.module.ts**  
-
-```typescript
-import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { PurchasesModule } from './purchases/purchases.module';
-import { PurchasePublisher } from './change-stream/purchase.publisher';
-
-@Module({
-  imports: [
-    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/purchase-service'),
-    PurchasesModule,
-  ],
-  providers: [PurchasePublisher],
-  exports: [PurchasePublisher],
-})
-export class AppModule {}
-```
-
-### Serviço de Classroom (Consumer)
-
-
-#### package.json
-
-**classroom-service/ package.json**  
-
-```json
-{
-  "name": "classroom-service",
-  "version": "1.0.0",
-  "dependencies": {
-    "@nestjs/common": "^9.0.0",
-    "@nestjs/core": "^9.0.0",
-    "@nestjs/mongoose": "^9.0.0",
-    "@nestjs/platform-express": "^9.0.0",
-    "mongoose": "^6.0.0",
-    "@dafaz/change-stream-broker": "^1.0.0"
-  }
-}
-```
-
-
-#### EnrollmentSchema
-
-**classroom-service/ src/ enrollments/ schemas/ enrollment.schema.ts**  
-
-```typescript
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
-
-export type EnrollmentDocument = Enrollment & Document;
-
-@Schema({ timestamps: true })
-export class Enrollment {
-  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Student' })
-  studentId: string;
-
-  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Course' })
-  courseId: string;
-
-  @Prop({ required: true, unique: true })
-  purchaseId: string;
-
-  @Prop({ default: 'active' })
-  status: string;
-
-  @Prop()
-  enrolledAt: Date;
-
-  @Prop()
-  completedAt: Date;
-}
-
-export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);
-```
-
-
-#### PurchaseMessage
-
-**classroom-service/ src/ change-stream/ enrollment.consumer.ts**  
-
-```typescript
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { 
-  ChangeStreamBroker, 
-  ConsumerConfig, 
-  MessageHandlerConfig 
-} from '@dafaz/change-stream-broker';
-import { EnrollmentsService } from '../enrollments/enrollments.service';
-
-interface PurchaseMessage {
-  purchaseId: string;
-  customerId: string;
-  productId: string;
-  productType: string;
-  amount: number;
-  status: string;
-  createdAt: Date;
-}
-
-@Injectable()
-export class EnrollmentConsumer implements OnModuleInit, OnModuleDestroy {
-  private broker: ChangeStreamBroker;
-
-  constructor(private enrollmentsService: EnrollmentsService) {
-    this.broker = new ChangeStreamBroker({
-      mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017',
-      database: 'purchase-events'
-    });
-  }
-
-  async onModuleInit() {
-    await this.broker.connect();
-
-    const consumerConfig: ConsumerConfig = {
-      groupId: 'classroom-service',
-      topic: 'purchases',
-      autoCommit: true,
-      autoCommitIntervalMs: 5000,
-      fromBeginning: false
-    };
-
-    const handlerConfig: MessageHandlerConfig<PurchaseMessage> = {
-      handler: this.handlePurchaseEvent.bind(this),
-      errorHandler: this.handleError.bind(this),
-      maxRetries: 3,
-      retryDelay: 1000,
-      autoCommit: true
-    };
-
-    const consumer = await this.broker.createConsumer(consumerConfig);
-    await consumer.subscribe(handlerConfig);
-
-    console.log('Enrollment consumer started listening for purchase events...');
-  }
-
-  private async handlePurchaseEvent(record: any) {
-    const purchase = record.message.value;
-    
-    // Apenas processar compras de cursos completadas
-    if (purchase.productType === 'course' && purchase.status === 'completed') {
-      console.log(`Processing course purchase: ${purchase.purchaseId}`);
-      
-      try {
-        // Verificar se já existe matrícula para esta compra
-        const existingEnrollment = await this.enrollmentsService.findByPurchaseId(purchase.purchaseId);
-        
-        if (!existingEnrollment) {
-          // Criar matrícula automaticamente
-          await this.enrollmentsService.create({
-            studentId: purchase.customerId, // customerId é o studentId
-            courseId: purchase.productId,   // productId é o courseId
-            purchaseId: purchase.purchaseId,
-            enrolledAt: new Date()
-          });
-          
-          console.log(`Enrollment created for purchase: ${purchase.purchaseId}`);
-        }
-      } catch (error) {
-        console.error(`Error creating enrollment for purchase ${purchase.purchaseId}:`, error);
-        throw error; // Não commitar offset para reprocessar
-      }
-    }
-  }
-
-  private async handleError(error: Error, record?: any) {
-    console.error('Error processing purchase event:', error);
-    
-    if (record) {
-      console.error('Failed purchase record:', record.message.value);
-      // Poderia enviar para uma DLQ aqui
-    }
-  }
-
-  async onModuleDestroy() {
-    await this.broker.disconnect();
-  }
-}
-```
-
-#### EnrollmentsService
-
-**classroom-service/ src/ enrollments/ enrollments.service.ts**  
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Enrollment, EnrollmentDocument } from './schemas/enrollment.schema';
-
-@Injectable()
-export class EnrollmentsService {
-  constructor(
-    @InjectModel(Enrollment.name) private enrollmentModel: Model<EnrollmentDocument>
-  ) {}
-
-  async create(createEnrollmentDto: any) {
-    const enrollment = new this.enrollmentModel(createEnrollmentDto);
-    return enrollment.save();
-  }
-
-  async findByPurchaseId(purchaseId: string) {
-    return this.enrollmentModel.findOne({ purchaseId });
-  }
-
-  async findByStudentId(studentId: string) {
-    return this.enrollmentModel.find({ studentId }).populate('courseId');
-  }
-
-  async updateStatus(enrollmentId: string, status: string) {
-    return this.enrollmentModel.findByIdAndUpdate(
-      enrollmentId,
-      { status },
-      { new: true }
-    );
-  }
-
-  async completeEnrollment(enrollmentId: string) {
-    return this.enrollmentModel.findByIdAndUpdate(
-      enrollmentId,
-      { 
-        status: 'completed',
-        completedAt: new Date()
-      },
-      { new: true }
-    );
-  }
-}
-```
-
-#### EnrollmentsController
-
-**classroom-service/ src/ enrollments/ enrollments.controller.ts**  
-
-```typescript
-import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common';
-import { EnrollmentsService } from './enrollments.service';
-
-@Controller('enrollments')
-export class EnrollmentsController {
-  constructor(private readonly enrollmentsService: EnrollmentsService) {}
-
-  @Post()
-  async create(@Body() createEnrollmentDto: any) {
-    return this.enrollmentsService.create(createEnrollmentDto);
-  }
-
-  @Get('student/:studentId')
-  async findByStudent(@Param('studentId') studentId: string) {
-    return this.enrollmentsService.findByStudentId(studentId);
-  }
-
-  @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return this.enrollmentsService.updateStatus(id, status);
-  }
-
-  @Patch(':id/complete')
-  async completeEnrollment(@Param('id') id: string) {
-    return this.enrollmentsService.completeEnrollment(id);
-  }
-}
-```
-
-#### AppModule
-
-**classroom-service/ src/ app.module.ts**
-
-```typescript
-import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { EnrollmentsModule } from './enrollments/enrollments.module';
-import { EnrollmentConsumer } from './change-stream/enrollment.consumer';
-
-@Module({
-  imports: [
-    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/classroom-service'),
-    EnrollmentsModule,
-  ],
-  providers: [EnrollmentConsumer],
-})
-export class AppModule {}
-```
-
-### Exemplo de Configuração Docker
-
-#### replSet local (para desenvolvimento)
+#### Exemplo de Configuração do MongoDB replica set em um container Docker
 
 O Change Stream exige que a sua instância do MongoDB esteja em um cluster.
-Para fins de desenvolvimento, você pode simular esse cluster. Vamos criar dois
-arquivos para subir uma instância de dados no docker com replSet configurado.
-**Observação: isso só deve ser feito para fins de desenvolvimento.**
+Em desenvolvimento, você pode simular esse cluster. Para isso, será necessário criar o docker-compose e o Dockerfile da seguinte forma:
 
 [root] / docker-compose.yml
 
@@ -886,3 +195,341 @@ RUN openssl rand -base64 756 > /etc/mongo-keyfile
 RUN chmod 400 /etc/mongo-keyfile 
 RUN chown mongodb:mongodb /etc/mongo-keyfile 
 ```
+
+Inicialize o container docker:
+
+```bash
+docker compose up -d
+```
+
+
+## Exemplo de Desenvolvimento de um Producer em NestJS:
+
+### Purchases
+
+Instale o broker 
+
+```bash
+npm install @dafaz/change-stream-broker
+```
+
+#### Edite o arquivo .env da aplicação:
+
+```
+MONGODB_BROKER_URI="mongodb://root:docker@127.0.0.1:27017/?replicaSet=rs0&authSource=admin"
+MONGODB_BROKER_DATABASE="purchase-events"
+```
+
+#### Crie os arquivos de configuração e schema do broker
+
+```bash
+npx csbroker init
+```
+
+#### [root] / change-stream / config
+
+```text
+// ==============================================
+// EXAMPLE - BROKER CONFIGURATION
+// ==============================================
+export const brokerConfig = defineBroker({
+	mongoUri: process.env.MONGODB_BROKER_URI,
+	database: process.env.MONGODB_BROKER_DATABASE,
+	autoCreateTopics: true,
+	logLevel: 'INFO',
+	logContext: 'Purchase Service Broker',
+})
+
+// ==============================================
+// EXAMPLE - CREATE PRODUCERS
+// ==============================================
+
+export const purchasesProducerConfig = defineProducer({
+	topic: 'purchases.new-purchase',
+	partitions: 1,
+	retentionMs: 7 * 24 * 60 * 60 * 1000,
+	partitionStrategy: 'hash',
+})
+```
+
+
+#### [root] / change-stream / message-payload.schema.ts
+
+```text
+// ==============================================
+// EXAMPLE - MESSAGE PAYLOAD SCHEMAS
+// ==============================================
+
+export interface PurchaseCreatedPayload {
+	customer: {
+		id: string
+		authUserId: string
+	}
+	product: {
+		id: string
+		title: string
+		slug: string
+	}
+}
+```
+
+#### Geração dos arquivos para o broker:
+
+```bash
+npx csbroker generate
+```
+
+### Desenvolvimento
+
+#### src / messaging / change-stream.service.ts
+
+```javascript
+import { ChangeStreamBroker } from '@dafaz/change-stream-broker'
+import { brokerConfig } from '@dafaz/change-stream-broker/client'
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
+
+@Injectable()
+export class ChangeStreamBrokerService
+	extends ChangeStreamBroker
+	implements OnModuleInit, OnModuleDestroy
+{
+	constructor() {
+		super(brokerConfig)
+	}
+
+	async onModuleInit() {
+		await this.connect()
+	}
+	async onModuleDestroy() {
+		await this.disconnect()
+	}
+}
+```
+
+#### src / messaging / messaging.module.ts
+
+```javascript
+import { Module } from '@nestjs/common'
+import { ChangeStreamBrokerService } from './change-stream.service'
+
+@Module({
+	providers: [ChangeStreamBrokerService],
+	exports: [ChangeStreamBrokerService],
+})
+export class MessagingModule {}
+```
+
+Importe MessagingModule no módulo principal, ou no módulo cuja as classes dependem de ChangeStreamBrokerService.
+
+
+#### src / services / purchases.service.ts
+
+```javascript
+[...]
+
+  const docToSend: PurchaseCreatedPayload = {
+        customer: {
+          id: customer.id,
+          authUserId: customer.authUserId,
+        },
+        product: {
+          id: product.id,
+          title: product.title,
+          slug: product.slug,
+        },
+      }
+
+  const producer = await this.changeStreamBroker.createProducer(
+    purchasesProducerConfig,
+  )
+
+  await producer.send({
+    key: purchase.id,
+    value: docToSend, // message-payload
+    timestamp: new Date(),
+    headers: {
+      eventType: 'purchase.created',
+      source: 'purchases-service',
+    },
+  })
+
+[...]
+```
+
+## Exemplo de desenvolvimento do Consumer em NestJS:
+
+Instale o broker 
+
+```bash
+npm install @dafaz/change-stream-broker
+```
+
+#### Edite o arquivo .env da aplicação:
+
+```
+MONGODB_BROKER_URI="mongodb://root:docker@127.0.0.1:27017/?replicaSet=rs0&authSource=admin"
+MONGODB_BROKER_DATABASE="purchase-events"
+```
+
+#### Crie os arquivos de configuração e schema do broker
+
+```bash
+npx csbroker init
+```
+
+#### [root] / change-stream / config
+
+```text
+// ==============================================
+// EXAMPLE - BROKER CONFIGURATION
+// ==============================================
+export const brokerConfig = defineBroker({
+	mongoUri: process.env.MONGODB_BROKER_URI,
+	database: process.env.MONGODB_BROKER_DATABASE,
+	autoCreateTopics: true,
+	logLevel: 'INFO',
+	logContext: 'Purchase Service Broker',
+})
+
+// ==============================================
+// EXAMPLE - CREATE CONSUMERS
+// ==============================================
+
+export const purchasesConsumerConfig = defineConsumer({
+	groupId: 'classroom-service',
+	topic: 'purchases.new-purchase',
+	partitions: [0],
+	autoCommit: true,
+	autoCommitIntervalMs: 15000,
+	fromBeginning: false,
+	maxRetries: 3,
+	retryDelayMs: 1000,
+	enableOffsetMonitoring: false,
+	options: {
+		batchSize: 100,
+		maxAwaitTimeMS: 1000,
+		fullDocument: 'updateLookup',
+	},
+})
+```
+
+
+#### [root] / change-stream / message-payload.schema.ts
+
+```text
+// ==============================================
+// EXAMPLE - MESSAGE PAYLOAD SCHEMAS
+// ==============================================
+
+export interface PurchaseCreatedPayload {
+	customer: {
+		id: string
+		authUserId: string
+	}
+	product: {
+		id: string
+		title: string
+		slug: string
+	}
+}
+```
+
+#### Geração dos arquivos para o broker:
+
+```bash
+npx csbroker generate
+```
+
+### Desenvolvimento
+
+#### src / messaging / change-stream.service.ts
+
+
+```javascript
+import {
+	ChangeStreamBroker,
+	ChangeStreamConsumer,
+	ConsumerRecord,
+	MessageHandlerConfig,
+} from '@dafaz/change-stream-broker'
+import {
+	brokerConfig,
+	PurchaseCreatedPayload,
+	purchasesConsumerConfig,
+} from '@dafaz/change-stream-broker/client'
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
+import { EnrollmentsService } from '../http/services/enrollments.service'
+
+@Injectable()
+export class ChangeStreamBrokerService
+	extends ChangeStreamBroker
+	implements OnModuleInit, OnModuleDestroy
+{
+	private consumer: ChangeStreamConsumer
+
+	constructor(private readonly enrollmentsService: EnrollmentsService) {
+		super(brokerConfig)
+	}
+
+	async onModuleInit() {
+		await this.connect()
+
+		const handlerConfig: MessageHandlerConfig<PurchaseCreatedPayload> = {
+			handler: this.handlePurchaseEvent.bind(this),
+			errorHandler: this.handleError.bind(this),
+			maxRetries: 3,
+			retryDelay: 1000,
+			autoCommit: true,
+		}
+
+		this.consumer = await this.createConsumer(purchasesConsumerConfig)
+		await this.consumer.subscribe(handlerConfig)
+
+		console.log('Enrollment consumer started listening for purchase events...')
+	}
+	async onModuleDestroy() {
+		if (this.consumer) {
+			await this.consumer.unsubscribe()
+		}
+
+		await this.disconnect()
+	}
+
+	async handlePurchaseEvent(payload: ConsumerRecord<PurchaseCreatedPayload>) {
+		const purchase = payload.message.value
+
+		try {
+			await this.enrollmentsService.createEnrollment(purchase)
+		} catch (error) {
+			console.error(`Error creating enrollment: ${error.message}`)
+			throw error
+		}
+	}
+
+	private async handleError(error: Error, record?: any) {
+		console.error('Error processing purchase event:', error)
+
+		if (record) {
+			console.error('Failed record:', record.message.value)
+		}
+	}
+}
+```
+
+#### src / messaging / messaging.module.ts
+
+```javascript
+import { Module } from '@nestjs/common'
+import { DatabaseModule } from '../database/database.module'
+import { EnrollmentsService } from '../http/services/enrollments.service'
+import { ChangeStreamBrokerService } from './change-stream.service'
+
+@Module({
+  imports: [DatabaseModule]
+	providers: [ChangeStreamBrokerService, EnrollmentsService,],
+	exports: [ChangeStreamBrokerService, EnrollmentsService,],
+})
+export class MessagingModule {}
+```
+
+Importe o MessagingModule no módulo principal, ou no módulo cuja as classes dependem de ChangeStreamBrokerService.

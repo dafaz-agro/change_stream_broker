@@ -196,7 +196,7 @@ RUN chmod 400 /etc/mongo-keyfile
 RUN chown mongodb:mongodb /etc/mongo-keyfile 
 ```
 
-Inicialize o container docker:
+**Inicialize o container docker:**
 
 ```bash
 docker compose up -d

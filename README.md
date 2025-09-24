@@ -150,7 +150,7 @@ npx csbroker diff
 O Change Stream exige que a sua instância do MongoDB esteja em um cluster.
 Em desenvolvimento, você pode simular esse cluster. Para isso, será necessário criar o docker-compose e o Dockerfile da seguinte forma:
 
-[root] / docker-compose.yml
+**[root] / docker-compose.yml**
 
 ```yml
 version: '3.8'
@@ -187,7 +187,7 @@ networks:
     driver: bridge
 ```
 
-[root-path] / Dockerfile
+**[root-path] / Dockerfile**
 
 ```text
 FROM mongo

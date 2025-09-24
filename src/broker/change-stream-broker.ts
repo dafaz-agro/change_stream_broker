@@ -105,10 +105,7 @@ export class ChangeStreamBroker {
 
 	async createProducer(config: ProducerConfig): Promise<ChangeStreamProducer> {
 		// Verificar se o tópico existe, criar se necessário
-		if (
-			this.config.autoCreateTopics &&
-			!(await this.topicManager.topicExists(config.topic))
-		) {
+		if (this.config.autoCreateTopics) {
 			await this.createTopic({
 				name: config.topic,
 				collection: config.topic,

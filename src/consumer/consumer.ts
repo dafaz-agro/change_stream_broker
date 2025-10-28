@@ -224,14 +224,47 @@ export class ChangeStreamConsumer {
 			maxAwaitTimeMS: this.config.options?.maxAwaitTimeMS || 1000,
 		}
 
-		if (lastOffset && !this.config.fromBeginning) {
+		if (lastOffset) {
 			options.resumeAfter = lastOffset
+			this.logger.info('Resuming from stored offset', {
+				partition,
+				hasResumeToken: true,
+				fromBeginning: false,
+			})
+		} else if (this.config.fromBeginning) {
+			// Se não há offset armazenado E fromBeginning é true, começar do início
+			// Não definir resumeAfter = null (o MongoDB já começa do início por padrão)
+			this.logger.info(
+				'Starting from beginning (no stored offset + fromBeginning=true)',
+				{
+					partition,
+					hasResumeToken: false,
+					fromBeginning: true,
+				},
+			)
+		} else {
+			// Se não há offset armazenado E fromBeginning é false, começar do momento atual
+			// O MongoDB Change Stream por padrão começa do momento atual quando não há resumeAfter
+			this.logger.info(
+				'Starting from current (no stored offset + fromBeginning=false)',
+				{
+					partition,
+					hasResumeToken: false,
+					fromBeginning: false,
+				},
+			)
 		}
 
 		this.logger.info('Creating change stream for partition', {
 			partition,
 			collection: collectionName,
 			hasResumeToken: !!lastOffset,
+			fromBeginning: this.config.fromBeginning,
+			strategy: lastOffset
+				? 'resume'
+				: this.config.fromBeginning
+					? 'beginning'
+					: 'current',
 		})
 
 		try {

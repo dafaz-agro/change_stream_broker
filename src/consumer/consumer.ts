@@ -17,26 +17,6 @@ import { BackoffManager } from '../utils/backoff'
 import { Logger } from '../utils/logger'
 import { ConsumerGroupManager } from './consumer-group'
 
-/**
- * Config Example:
- * 
- * const consumerConfig: ConsumerConfig = {
-    groupId: 'classroom-service',
-    topic: 'purchases.new-purchase',
-    autoCommit: true,
-    autoCommitIntervalMs: 30000, // 30 segundos é suficiente
-    fromBeginning: false,
-    maxRetries: 3,
-    retryDelayMs: 1000,
-    enableOffsetMonitoring: false, // Opcional para debug
-    options: {
-        batchSize: 100,
-        maxAwaitTimeMS: 1000,
-        fullDocument: 'updateLookup'
-    }
-}
- */
-
 export class ChangeStreamConsumer {
 	private client: MongoClient | null = null
 	private changeStream: ChangeStream | null = null
@@ -50,7 +30,6 @@ export class ChangeStreamConsumer {
 
 	private hasUncommittedChanges = false
 	private lastProcessedOffset: ResumeToken | null = null
-	private lastCommittedOffset: ResumeToken | null = null
 
 	private changeStreams: Map<number, ChangeStream> = new Map()
 	private partitionOffsets: Map<number, ResumeToken> = new Map()
@@ -99,18 +78,54 @@ export class ChangeStreamConsumer {
 
 	// Métodos para monitoramento e debug
 	getOffsetInfo() {
+		// Coletar informações de todas as partições
+		const partitionOffsets = Array.from(this.partitionOffsets.entries()).map(
+			([partition, offset]) => ({
+				partition,
+				processedOffset: offset,
+				committedOffset: this.partitionCommittedOffsets.get(partition),
+				hasUncommitted:
+					this.partitionUncommittedChanges.get(partition) || false,
+			}),
+		)
+
+		// Encontrar a última offset processada entre todas as partições
+		const lastProcessedOffset = this.findLatestOffset(
+			Array.from(this.partitionOffsets.values()),
+		)
+		const lastCommittedOffset = this.findLatestOffset(
+			Array.from(this.partitionCommittedOffsets.values()),
+		)
+
+		// Verificar se há alguma partição com mudanças não commitadas
+		const hasUncommittedChanges = Array.from(
+			this.partitionUncommittedChanges.values(),
+		).some((hasChanges) => hasChanges)
+
 		return {
-			lastProcessed: this.lastProcessedOffset,
-			lastCommitted: this.lastCommittedOffset,
-			hasUncommitted: this.hasUncommittedChanges,
+			lastProcessed: lastProcessedOffset,
+			lastCommitted: lastCommittedOffset,
+			hasUncommitted: hasUncommittedChanges,
 			areOffsetsSynced:
-				this.lastProcessedOffset && this.lastCommittedOffset
-					? this.isSameOffset(
-							this.lastProcessedOffset,
-							this.lastCommittedOffset,
-						)
-					: false,
+				lastProcessedOffset && lastCommittedOffset
+					? this.isSameOffset(lastProcessedOffset, lastCommittedOffset)
+					: lastProcessedOffset === lastCommittedOffset, // ambos null = synced
+			partitions: partitionOffsets,
+			totalPartitions: this.config.partitions.length,
+			activePartitions: this.partitionOffsets.size,
 		}
+	}
+
+	// Método auxiliar para encontrar a offset mais recente
+	private findLatestOffset(offsets: ResumeToken[]): ResumeToken | null {
+		const validOffsets = offsets.filter(
+			(offset) => offset !== null && offset !== undefined,
+		)
+		if (validOffsets.length === 0) return null
+
+		// Como não temos timestamp nas offsets, retornamos a primeira não-nula
+		// Em um sistema real, você precisaria de lógica mais sofisticada aqui
+		return validOffsets[0]
 	}
 
 	// Log estado dos offsets periodicamente (opcional)
@@ -118,8 +133,36 @@ export class ChangeStreamConsumer {
 		if (this.config.enableOffsetMonitoring) {
 			setInterval(() => {
 				const offsetInfo = this.getOffsetInfo()
-				this.logger.info('Offset monitoring:', offsetInfo)
-			}, 60000) // Log a cada 1 minuto
+
+				this.logger.info('📊 OFFSET MONITORING:', {
+					consumerId: this.consumerId,
+					topic: this.config.topic,
+					groupId: this.config.groupId,
+					summary: {
+						lastProcessed: offsetInfo.lastProcessed ? 'SET' : 'NULL',
+						lastCommitted: offsetInfo.lastCommitted ? 'SET' : 'NULL',
+						hasUncommitted: offsetInfo.hasUncommitted,
+						areOffsetsSynced: offsetInfo.areOffsetsSynced,
+					},
+					partitions: offsetInfo.partitions.map((p) => ({
+						partition: p.partition,
+						status: p.processedOffset
+							? p.hasUncommitted
+								? 'UNCOMMITTED'
+								: 'COMMITTED'
+							: 'NO_OFFSET',
+						processed: p.processedOffset ? 'YES' : 'NO',
+						committed: p.committedOffset ? 'YES' : 'NO',
+					})),
+					totals: {
+						totalPartitions: offsetInfo.totalPartitions,
+						activePartitions: offsetInfo.activePartitions,
+						partitionsWithOffsets: offsetInfo.partitions.filter(
+							(p) => p.processedOffset,
+						).length,
+					},
+				})
+			}, this.config.autoCommitIntervalMs || 30000) // Usar o mesmo intervalo do auto-commit
 		}
 	}
 
@@ -459,6 +502,13 @@ export class ChangeStreamConsumer {
 				return
 			}
 
+			this.logger.info('🟢 PROCESSING MESSAGE', {
+				partition,
+				operationType: change.operationType,
+				documentId: change.fullDocument._id,
+				offset: change._id,
+			})
+
 			const record: ConsumerRecord<T> = {
 				topic: this.config.topic,
 				partition: partition,
@@ -481,6 +531,12 @@ export class ChangeStreamConsumer {
 
 			this.partitionOffsets.set(partition, change._id)
 			this.partitionUncommittedChanges.set(partition, true)
+
+			this.logger.info('📝 OFFSET UPDATED', {
+				partition,
+				offset: change._id,
+				hasUncommitted: true,
+			})
 
 			this.consumerGroupManager.updateOffset(
 				this.config.groupId,
@@ -650,10 +706,21 @@ export class ChangeStreamConsumer {
 
 	private async commitPartitionOffset(partition: number): Promise<boolean> {
 		const offset = this.partitionOffsets.get(partition)
-		if (!offset) return false
+
+		this.logger.info('💾 ATTEMPTING COMMIT', {
+			partition,
+			hasOffset: !!offset,
+			offset: offset,
+		})
+
+		if (!offset) {
+			this.logger.warn('💾 NO OFFSET TO COMMIT', { partition })
+			return false
+		}
 
 		const lastCommitted = this.partitionCommittedOffsets.get(partition)
 		if (lastCommitted && this.isSameOffset(lastCommitted, offset)) {
+			this.logger.info('💾 OFFSET ALREADY COMMITTED', { partition })
 			this.partitionUncommittedChanges.set(partition, false)
 			return false
 		}
@@ -670,11 +737,31 @@ export class ChangeStreamConsumer {
 			if (committed) {
 				this.partitionCommittedOffsets.set(partition, offset)
 				this.partitionUncommittedChanges.set(partition, false)
+
+				this.logger.info('💾 COMMIT SUCCESSFUL', {
+					partition,
+					offset: offset,
+				})
+
 				return true
+			} else {
+				this.logger.info('💾 COMMIT SKIPPED (no changes)', { partition })
+				return false
 			}
-			return false
 		} catch (error) {
-			this.logger.error(`Commit failed for partition ${partition}:`, error)
+			if (error instanceof Error) {
+				this.logger.error('💾 COMMIT FAILED', {
+					partition,
+					error: error.message,
+					offset: offset,
+				})
+			} else {
+				this.logger.error('💾 COMMIT FAILED', {
+					partition,
+					error: error,
+					offset: offset,
+				})
+			}
 			return false
 		}
 	}
@@ -792,5 +879,34 @@ export class ChangeStreamConsumer {
 
 			throw error
 		}
+	}
+
+	debugOffsets() {
+		const state = {
+			consumerId: this.consumerId,
+			topic: this.config.topic,
+			groupId: this.config.groupId,
+			partitions: this.config.partitions.map((partition) => ({
+				partition,
+				processedOffset: this.partitionOffsets.get(partition),
+				committedOffset: this.partitionCommittedOffsets.get(partition),
+				hasUncommitted: this.partitionUncommittedChanges.get(partition),
+				isReconnecting: this.partitionReconnecting.get(partition),
+			})),
+			summary: {
+				totalProcessedOffsets: Array.from(
+					this.partitionOffsets.values(),
+				).filter(Boolean).length,
+				totalCommittedOffsets: Array.from(
+					this.partitionCommittedOffsets.values(),
+				).filter(Boolean).length,
+				totalUncommitted: Array.from(
+					this.partitionUncommittedChanges.values(),
+				).filter(Boolean).length,
+			},
+		}
+
+		this.logger.info('🔍 OFFSET DEBUG STATE:', state)
+		return state
 	}
 }

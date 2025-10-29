@@ -1,4 +1,10 @@
-import { ChangeStream, Document, MongoClient, ResumeToken } from 'mongodb'
+import {
+	ChangeStream,
+	Collection,
+	Document,
+	MongoClient,
+	ResumeToken,
+} from 'mongodb'
 import { OffsetStorage } from '../storage/offset-storage'
 import {
 	ChangeStreamEvent,
@@ -232,16 +238,46 @@ export class ChangeStreamConsumer {
 				fromBeginning: false,
 			})
 		} else if (this.config.fromBeginning) {
-			// Se não há offset armazenado E fromBeginning é true, começar do início
-			// Não definir resumeAfter = null (o MongoDB já começa do início por padrão)
-			this.logger.info(
-				'Starting from beginning (no stored offset + fromBeginning=true)',
-				{
-					partition,
-					hasResumeToken: false,
-					fromBeginning: true,
-				},
-			)
+			try {
+				// Tentar encontrar a primeira operação disponível
+				const firstDoc = await collection
+					.find()
+					.sort({ _id: 1 })
+					.limit(1)
+					.toArray()
+				if (firstDoc.length > 0) {
+					// Se há documentos, iremos processá-los antes de iniciar o change stream
+					await this.processExistingDocuments(collection, partition)
+
+					this.logger.info('Starting from beginning (first document)', {
+						partition,
+						firstDocumentId: firstDoc[0]?._id,
+					})
+				} else {
+					// Collection vazia - começar do momento atual
+					this.logger.info('Starting from current (empty collection)', {
+						partition,
+					})
+				}
+
+				this.logger.info(
+					'Starting from beginning (no stored offset + fromBeginning=true)',
+					{
+						partition,
+						hasResumeToken: false,
+						fromBeginning: true,
+					},
+				)
+			} catch (error) {
+				if (error instanceof Error)
+					this.logger.warn(
+						'Could not determine first document, starting from current',
+						{
+							partition,
+							error: error.message,
+						},
+					)
+			}
 		} else {
 			// Se não há offset armazenado E fromBeginning é false, começar do momento atual
 			// O MongoDB Change Stream por padrão começa do momento atual quando não há resumeAfter
@@ -254,18 +290,6 @@ export class ChangeStreamConsumer {
 				},
 			)
 		}
-
-		this.logger.info('Creating change stream for partition', {
-			partition,
-			collection: collectionName,
-			hasResumeToken: !!lastOffset,
-			fromBeginning: this.config.fromBeginning,
-			strategy: lastOffset
-				? 'resume'
-				: this.config.fromBeginning
-					? 'beginning'
-					: 'current',
-		})
 
 		try {
 			const changeStream = collection.watch([], options)
@@ -702,5 +726,71 @@ export class ChangeStreamConsumer {
 		return Array.from(this.partitionUncommittedChanges.values()).some(
 			(hasChanges) => hasChanges,
 		)
+	}
+
+	private async processExistingDocuments(
+		collection: Collection,
+		partition: number,
+	): Promise<void> {
+		try {
+			this.logger.info(
+				'🟢 Processing existing documents for fromBeginning strategy',
+				{
+					partition,
+					collection: collection.collectionName,
+				},
+			)
+
+			const documents = await collection.find({}).sort({ _id: 1 }).toArray()
+			let processedCount = 0
+
+			for (const document of documents) {
+				// CORREÇÃO: Usar a mesma lógica do processMessage mas para documentos estáticos
+				const fakeChangeEvent: ChangeStreamEvent<Document> = {
+					_id: { _data: `historical_${document._id}` } as ResumeToken,
+					operationType: 'insert' as const, // Ou 'historical'
+					clusterTime: new Date(),
+					fullDocument: document,
+					documentKey: { _id: document._id },
+					ns: {
+						db: this.database,
+						coll: collection.collectionName,
+					},
+				}
+
+				// Reutilizar a lógica existente do processMessage
+				await this.processMessage(fakeChangeEvent, partition)
+
+				processedCount++
+
+				if (processedCount % 100 === 0) {
+					this.logger.info(
+						`🟢 Processed ${processedCount} existing documents`,
+						{
+							partition,
+						},
+					)
+				}
+			}
+
+			this.logger.info('🟢 Finished processing existing documents', {
+				partition,
+				totalProcessed: processedCount,
+			})
+		} catch (error) {
+			if (error instanceof Error) {
+				this.logger.error('🔴 Error processing existing documents', {
+					partition,
+					error: error.message,
+				})
+			} else {
+				this.logger.error('🔴 Unknown error processing existing documents', {
+					partition,
+					error: error,
+				})
+			}
+
+			throw error
+		}
 	}
 }

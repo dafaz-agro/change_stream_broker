@@ -101,8 +101,7 @@ export class ChangeStreamBroker {
 
 		await consumer.connect()
 
-		// Chave única por grupo + tópico + partições
-		const consumerKey = `${config.groupId}-${config.topic}-${config.partitions.join(',')}`
+		const consumerKey = consumer.getConsumerId()
 		this.consumers.set(consumerKey, consumer)
 
 		return consumer

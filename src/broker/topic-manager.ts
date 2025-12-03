@@ -13,13 +13,13 @@ import {
 	TTLIndexInfo,
 	TTLValidationResult,
 } from '../types'
-import { Logger } from '../utils/logger'
+import { ILogger, Logger } from '../utils/logger'
 
 export class TopicManager {
 	private client!: MongoClient
 	private db!: Db
 	private topicsCollection!: Collection<TopicConfig & Document>
-	private logger: typeof Logger
+	private logger: ILogger
 
 	constructor(
 		private mongoUri: string,

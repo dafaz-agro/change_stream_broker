@@ -1,13 +1,13 @@
 import * as crypto from 'node:crypto'
 import { Document, MongoClient, OptionalId } from 'mongodb'
 import { Message, ProducerConfig } from '../types'
-import { Logger } from '../utils/logger'
+import { ILogger, Logger } from '../utils/logger'
 
 export class ChangeStreamProducer {
 	private client: MongoClient | null = null
 	public isConnected = false
 	private partitionCounter: number = 0
-	private logger: typeof Logger
+	private logger: ILogger
 
 	constructor(
 		private config: ProducerConfig,

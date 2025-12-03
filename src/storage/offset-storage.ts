@@ -8,7 +8,7 @@ import {
 	ResumeToken,
 } from 'mongodb'
 import { OffsetStorage as MongoOffsetStorage, OffsetCommit } from '../types'
-import { Logger } from '../utils/logger'
+import { ILogger, Logger } from '../utils/logger'
 
 export interface OffsetDocument extends Document {
 	groupId: string
@@ -25,7 +25,7 @@ export class OffsetStorage implements MongoOffsetStorage {
 	private isConnecting: boolean = false
 	private lastConnectionCheck: number = 0
 	private connectionStatus: boolean = false
-	private logger: typeof Logger
+	private logger: ILogger
 
 	constructor(
 		private mongoUri: string,

@@ -14,7 +14,7 @@ import {
 	MessageHandlerConfig,
 } from '../types'
 import { BackoffManager } from '../utils/backoff'
-import { Logger } from '../utils/logger'
+import { ILogger, Logger } from '../utils/logger'
 import { ConsumerGroupManager } from './consumer-group'
 
 export class ChangeStreamConsumer {
@@ -41,7 +41,7 @@ export class ChangeStreamConsumer {
 	private partitionBackoffs: Map<number, BackoffManager> = new Map()
 	private partitionReconnecting: Map<number, boolean> = new Map()
 
-	private logger: typeof Logger
+	private logger: ILogger
 
 	constructor(
 		private config: ConsumerConfig,

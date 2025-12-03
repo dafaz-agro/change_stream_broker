@@ -1,11 +1,11 @@
 import { ResumeToken } from 'mongodb'
 import { ConsumerGroup, ConsumerMap } from '../types'
-import { Logger } from '../utils/logger'
+import { ILogger, Logger } from '../utils/logger'
 import { ChangeStreamConsumer } from './consumer'
 
 export class ConsumerGroupManager {
 	private consumerGroups: Map<string, ConsumerGroup> = new Map()
-	private logger: typeof Logger
+	private logger: ILogger
 
 	constructor() {
 		this.logger = Logger.withContext('Consumer Group')

@@ -1,24 +1,29 @@
 import { LogLevel } from '@/types'
 
-export class Logger {
+export interface ILogger {
+	debug(message: string, ...args: unknown[]): void
+	info(message: string, ...args: unknown[]): void
+	warn(message: string, ...args: unknown[]): void
+	error(message: string, ...args: unknown[]): void
+}
+
+export class Logger implements ILogger {
 	private static level: LogLevel = LogLevel.INFO
 	private static isEnabled: boolean = true
-	private static context: string = ''
+
+	private readonly context: string = ''
+
+	constructor(context: string = '') {
+		this.context = context
+	}
 
 	// Configuração global do logger
-	static configure(config: {
-		level?: LogLevel
-		enabled?: boolean
-		context?: string
-	}): void {
+	static configure(config: { level?: LogLevel; enabled?: boolean }): void {
 		if (config.level !== undefined) {
 			Logger.level = config.level
 		}
 		if (config.enabled !== undefined) {
 			Logger.isEnabled = config.enabled
-		}
-		if (config.context !== undefined) {
-			Logger.context = config.context
 		}
 	}
 
@@ -36,49 +41,6 @@ export class Logger {
 		Logger.level = level
 	}
 
-	// Métodos de log com verificação de nível
-	static debug(message: string, ...args: unknown[]): void {
-		if (Logger.shouldLog(LogLevel.DEBUG)) {
-			console.debug(Logger.formatMessage('DEBUG', message), ...args)
-		}
-	}
-
-	static info(message: string, ...args: unknown[]): void {
-		if (Logger.shouldLog(LogLevel.INFO)) {
-			console.log(Logger.formatMessage('INFO', message), ...args)
-		}
-	}
-
-	static warn(message: string, ...args: unknown[]): void {
-		if (Logger.shouldLog(LogLevel.WARN)) {
-			console.warn(Logger.formatMessage('WARN', message), ...args)
-		}
-	}
-
-	static error(message: string, ...args: unknown[]): void {
-		if (Logger.shouldLog(LogLevel.ERROR)) {
-			console.error(Logger.formatMessage('ERROR', message), ...args)
-		}
-	}
-
-	// Método para logs críticos (sempre loga, mesmo se desativado)
-	static critical(message: string, ...args: unknown[]): void {
-		console.error(Logger.formatMessage('CRITICAL', message), ...args)
-	}
-
-	// Verificar se deve logar
-	private static shouldLog(level: LogLevel): boolean {
-		return Logger.isEnabled && level <= Logger.level
-	}
-
-	// Formatar mensagem
-	private static formatMessage(level: string, message: string): string {
-		const timestamp = new Date().toISOString()
-		const context = Logger.context ? ` [${Logger.context}]` : ''
-		return `[${level}] ${timestamp}${context}: ${message}`
-	}
-
-	// Métodos utilitários
 	static getCurrentLevel(): LogLevel {
 		return Logger.level
 	}
@@ -87,10 +49,50 @@ export class Logger {
 		return Logger.isEnabled
 	}
 
+	// Método para logs críticos (sempre loga, mesmo se desativado)
+	static critical(message: string, ...args: unknown[]): void {
+		console.error(`[CRITICAL] ${new Date().toISOString()}: ${message}`, ...args)
+	}
+
 	// Criar logger com contexto específico
-	static withContext(context: string): typeof Logger {
-		const contextualLogger = class extends Logger {}
-		contextualLogger.configure({ context })
-		return contextualLogger
+	static withContext(context: string): ILogger {
+		return new Logger(context)
+	}
+
+	// Verificar se deve logar
+	private shouldLog(level: LogLevel): boolean {
+		return Logger.isEnabled && level <= Logger.level
+	}
+
+	// Formatar mensagem
+	private formatMessage(level: string, message: string): string {
+		const timestamp = new Date().toISOString()
+		const context = this.context ? ` [${this.context}]` : ''
+		return `[${level}] ${timestamp}${context}: ${message}`
+	}
+
+	// Métodos de log com verificação de nível
+	debug(message: string, ...args: unknown[]): void {
+		if (this.shouldLog(LogLevel.DEBUG)) {
+			console.debug(this.formatMessage('DEBUG', message), ...args)
+		}
+	}
+
+	info(message: string, ...args: unknown[]): void {
+		if (this.shouldLog(LogLevel.INFO)) {
+			console.log(this.formatMessage('INFO', message), ...args)
+		}
+	}
+
+	warn(message: string, ...args: unknown[]): void {
+		if (this.shouldLog(LogLevel.WARN)) {
+			console.warn(this.formatMessage('WARN', message), ...args)
+		}
+	}
+
+	error(message: string, ...args: unknown[]): void {
+		if (this.shouldLog(LogLevel.ERROR)) {
+			console.error(this.formatMessage('ERROR', message), ...args)
+		}
 	}
 }

@@ -1,4 +1,4 @@
-import { Logger } from '@/utils/logger'
+import { ILogger, Logger } from '@/utils/logger'
 import { ChangeStreamConsumer } from '../consumer/consumer'
 import { ConsumerGroupManager } from '../consumer/consumer-group'
 import { ChangeStreamProducer } from '../producer/producer'
@@ -16,11 +16,26 @@ export class ChangeStreamBroker {
 	private topicManager: TopicManager
 	private offsetStorage: OffsetStorage
 	private consumerGroupManager: ConsumerGroupManager
+	private logger: ILogger
+
 	private consumers: Map<string, ChangeStreamConsumer> = new Map()
 	private producers: Map<string, ChangeStreamProducer> = new Map()
 
 	constructor(private config: BrokerConfig) {
 		this.configureGlobalLogger()
+
+		const logContext = this.config.logContext || 'ChangeStreamBroker'
+
+		this.logger = Logger.withContext(logContext)
+
+		// 3. Log Inicial (usando a instância)
+		const logLevel = this.convertLogLevel(this.config.logLevel)
+		if (logLevel > LogLevel.SILENT) {
+			this.logger.info('Broker initialized', {
+				logLevel: LogLevel[logLevel],
+				context: logContext,
+			})
+		}
 
 		this.topicManager = new TopicManager(
 			config.mongoUri,
@@ -37,22 +52,12 @@ export class ChangeStreamBroker {
 
 	private configureGlobalLogger(): void {
 		const logLevel = this.convertLogLevel(this.config.logLevel)
-		const logContext = this.config.logContext || 'ChangeStreamBroker'
 
 		// Configurar Logger global
 		Logger.configure({
 			level: logLevel,
 			enabled: logLevel > LogLevel.SILENT, // Desativar se for SILENT
-			context: logContext,
 		})
-
-		// Log inicial se não for SILENT
-		if (logLevel > LogLevel.SILENT) {
-			Logger.info('Broker initialized', {
-				logLevel: LogLevel[logLevel],
-				context: logContext,
-			})
-		}
 	}
 
 	private convertLogLevel(levelStr?: string): LogLevel {

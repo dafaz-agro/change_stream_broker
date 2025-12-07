@@ -17,6 +17,10 @@ export class ChangeStreamProducer {
 		this.logger = Logger.withContext('Producer')
 	}
 
+	getTopic(): string {
+		return this.config.topic
+	}
+
 	async connect(): Promise<void> {
 		this.client = new MongoClient(this.mongoUri)
 		await this.client.connect()
